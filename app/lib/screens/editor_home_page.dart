@@ -1,5 +1,6 @@
 
 import 'package:flutter/material.dart';
+import 'editor_workspace_page.dart';
 
 class EditorHomePage extends StatelessWidget {
   const EditorHomePage({super.key});
@@ -39,7 +40,15 @@ class EditorHomePage extends StatelessWidget {
             ),
             const SizedBox(height: 35),
             FilledButton.icon(
-              onPressed: () {},
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        const EditorWorkspacePage(),
+                  ),
+                );
+              },
               icon: const Icon(Icons.add),
               label: const Text('New Project'),
             ),
