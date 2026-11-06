@@ -1,6 +1,6 @@
 
 import 'package:flutter/material.dart';
-import 'editor_workspace_page.dart';
+import 'project_setup_page.dart';
 
 class EditorHomePage extends StatelessWidget {
   const EditorHomePage({super.key});
@@ -14,7 +14,6 @@ class EditorHomePage extends StatelessWidget {
           'VeCut',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
-        backgroundColor: const Color(0xFF181820),
       ),
       body: Center(
         child: Column(
@@ -45,7 +44,7 @@ class EditorHomePage extends StatelessWidget {
                   context,
                   MaterialPageRoute(
                     builder: (context) =>
-                        const EditorWorkspacePage(),
+                        const ProjectSetupPage(),
                   ),
                 );
               },
