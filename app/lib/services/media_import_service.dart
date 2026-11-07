@@ -13,7 +13,7 @@ class MediaImportService {
       _pick(FileType.audio, MediaAssetType.audio);
 
   Future<List<MediaAsset>> pickImages() =>
-      _pick(FileType.image, MediaAssetType.image);
+      _pick(FileType.image, MediaAssetType.image, allowMultiple: true);
 
   Future<List<MediaAsset>> _pick(
     FileType fileType,
