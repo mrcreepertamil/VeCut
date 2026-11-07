@@ -97,19 +97,8 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
   }
 
   Future<void> _importImages() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-      allowMultiple: true,
-    );
-    if (result == null || !mounted) return;
-    final assets = result.files.where((file) => file.path != null).map((file) =>
-      MediaAsset(
-        id: '${DateTime.now().microsecondsSinceEpoch}_${file.name}',
-        path: file.path!,
-        type: MediaAssetType.image,
-        displayName: file.name,
-      ),
-    ).toList();
+    final assets = await _mediaImporter.pickImages();
+    if (assets.isEmpty || !mounted) return;
     if (assets.isEmpty) return;
     setState(() {
       _mediaAssets.addAll(assets);
@@ -383,6 +372,8 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
     final durationMs = _duration.inMilliseconds.toDouble();
     final maxMs = durationMs > 0 ? durationMs : 1.0;
     final currentPosition = controller?.value.position ?? Duration.zero;
+    final overlayVisible = currentPosition.inMilliseconds >= _overlayStartMs &&
+        currentPosition.inMilliseconds <= _overlayStartMs + _overlayDurationMs;
 
     return Scaffold(
       appBar: AppBar(
@@ -433,15 +424,15 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                       alignment: Alignment.center,
                       children: [
                         Center(child: AspectRatio(aspectRatio: controller!.value.aspectRatio, child: VideoPlayer(controller))),
-                        if (_overlayImagePath != null)
+                        if (overlayVisible && _overlayImagePath != null)
                           Positioned(
-                            left: (_overlayX * 220).clamp(0, 220),
-                            top: (_overlayY * 130).clamp(0, 130),
+                            left: (_overlayX * 220).clamp(0, 220).toDouble(),
+                            top: (_overlayY * 130).clamp(0, 130).toDouble(),
                             width: 110 * _overlayScale,
                             height: 80 * _overlayScale,
                             child: Image.file(File(_overlayImagePath!), fit: BoxFit.contain),
                           ),
-                        if (_overlayVideoController?.value.isInitialized == true)
+                        if (overlayVisible && _overlayVideoController?.value.isInitialized == true)
                           Positioned(
                             left: (_overlayX * 220).clamp(0, 220),
                             top: (_overlayY * 130).clamp(0, 130),
@@ -449,7 +440,7 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                             height: 85 * _overlayScale,
                             child: ClipRRect(borderRadius: BorderRadius.circular(8), child: VideoPlayer(_overlayVideoController!)),
                           ),
-                        if (_overlayText != null)
+                        if (overlayVisible && _overlayText != null)
                           Positioned(
                             left: (_overlayX * 220).clamp(0, 220),
                             top: (_overlayY * 130).clamp(0, 130),
@@ -811,7 +802,7 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                       children: [
                         const SizedBox(width: 72, child: Text('Start')),
                         Expanded(child: Slider(
-                          value: _audioStartMs.toDouble().clamp(0, 60000),
+                          value: _audioStartMs.toDouble().clamp(0, 60000).toDouble(),
                           min: 0, max: 60000, divisions: 60,
                           label: '${(_audioStartMs / 1000).toStringAsFixed(0)}s',
                           onChanged: (value) => setState(() => _audioStartMs = value.round()),
@@ -836,12 +827,12 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                     Row(children: [const SizedBox(width: 72, child: Text('Scale')), Expanded(child: Slider(value: _overlayScale, min: 0.25, max: 2, onChanged: (v) => setState(() => _overlayScale = v)))]),
                     Row(children: [
                       const SizedBox(width: 72, child: Text('Start')),
-                      Expanded(child: Slider(value: _overlayStartMs.toDouble().clamp(0, 60000), min: 0, max: 60000, divisions: 60, onChanged: (v) => setState(() => _overlayStartMs = v.round()))),
+                      Expanded(child: Slider(value: _overlayStartMs.toDouble().clamp(0, 60000).toDouble(), min: 0, max: 60000, divisions: 60, onChanged: (v) => setState(() => _overlayStartMs = v.round()))),
                       Text('${(_overlayStartMs / 1000).round()}s'),
                     ]),
                     Row(children: [
                       const SizedBox(width: 72, child: Text('Duration')),
-                      Expanded(child: Slider(value: _overlayDurationMs.toDouble().clamp(1000, 30000), min: 1000, max: 30000, divisions: 29, onChanged: (v) => setState(() => _overlayDurationMs = v.round()))),
+                      Expanded(child: Slider(value: _overlayDurationMs.toDouble().clamp(1000, 30000).toDouble(), min: 1000, max: 30000, divisions: 29, onChanged: (v) => setState(() => _overlayDurationMs = v.round()))),
                       Text('${(_overlayDurationMs / 1000).round()}s'),
                     ]),
                     const Text('Overlay controls currently affect preview placement/timing settings. Full compositing into the exported timeline remains future work.', style: TextStyle(color: Colors.white54, fontSize: 10)),
