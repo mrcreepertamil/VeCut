@@ -182,7 +182,7 @@ jobs:
           marker = "// VeCut compile SDK override"
 
           if marker not in root_content:
-              root_gradle.write_text(root_content.rstrip() + "\\n\\n" + override)
+              root_gradle.write_text(root_content.rstrip() + "\n\n" + override)
           print(f"Configured Android subprojects to compile against SDK 36 using {root_gradle}.")
           PY
 
