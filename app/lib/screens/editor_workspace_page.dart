@@ -20,6 +20,13 @@ class EditorWorkspacePage extends StatefulWidget {
 
 class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
   VideoPlayerController? _controller;
+  VideoPlayerController? _audioController;
+  VideoPlayerController? _overlayVideoController;
+  final List<String> _videoPaths = [];
+  String? _audioPath;
+  String? _overlayImagePath;
+  String? _overlayVideoPath;
+  String? _overlayText;
   String? _videoPath;
   RangeValues _trimRange = const RangeValues(0, 1);
   bool _isExporting = false;
@@ -59,17 +66,20 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
   @override
   void dispose() {
     _controller?.dispose();
+    _audioController?.dispose();
+    _overlayVideoController?.dispose();
     super.dispose();
   }
 
   Future<void> _importVideo() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.video,
-      allowMultiple: false,
+      allowMultiple: true,
     );
-    if (result == null || result.files.single.path == null) return;
-
-    final path = result.files.single.path!;
+    if (result == null || result.files.isEmpty) return;
+    final paths = result.files.where((f) => f.path != null).map((f) => f.path!).toList();
+    if (paths.isEmpty) return;
+    final path = paths.first;
     final nextController = VideoPlayerController.file(File(path));
     try {
       await nextController.initialize();
@@ -80,10 +90,11 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
       }
       setState(() {
         _controller = nextController;
+        _videoPaths.addAll(paths);
         _videoPath = path;
         final milliseconds = nextController.value.duration.inMilliseconds;
         _trimRange = RangeValues(0, milliseconds.toDouble());
-        _status = 'Video loaded. Adjust the trim handles, then export.';
+        _status = paths.length.toString() + ' video clip(s) imported. Select another clip in the timeline to preview it.';
         _exportedPath = null;
       });
     } catch (error) {
@@ -92,6 +103,91 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
         setState(() => _status = 'Could not open this video: $error');
       }
     }
+  }
+
+  Future<void> _selectVideo(String path) async {
+    final next = VideoPlayerController.file(File(path));
+    try {
+      await next.initialize();
+      await _controller?.dispose();
+      if (!mounted) { await next.dispose(); return; }
+      setState(() {
+        _controller = next;
+        _videoPath = path;
+        _trimRange = RangeValues(0, next.value.duration.inMilliseconds.toDouble());
+        _status = 'Selected ' + path.split(Platform.pathSeparator).last;
+      });
+    } catch (error) {
+      await next.dispose();
+      if (mounted) setState(() => _status = 'Could not open clip: ' + error.toString());
+    }
+  }
+
+  Future<void> _importAudio() async {
+    final result = await FilePicker.platform.pickFiles(type: FileType.audio);
+    final path = result?.files.single.path;
+    if (path == null) return;
+    final next = VideoPlayerController.file(File(path));
+    try {
+      await next.initialize();
+      await _audioController?.dispose();
+      if (!mounted) { await next.dispose(); return; }
+      setState(() { _audioController = next; _audioPath = path; _status = 'Audio imported. Use its play button to preview.'; });
+    } catch (error) {
+      await next.dispose();
+      if (mounted) setState(() => _status = 'Could not open audio: ' + error.toString());
+    }
+  }
+
+  Future<void> _addTextOverlay() async {
+    final input = TextEditingController(text: _overlayText ?? '');
+    final value = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Text overlay'),
+        content: TextField(controller: input, autofocus: true, maxLines: 3),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, input.text.trim()), child: const Text('Apply')),
+        ],
+      ),
+    );
+    input.dispose();
+    if (value == null) return;
+    setState(() { _overlayText = value.isEmpty ? null : value; _status = 'Text overlay updated.'; });
+  }
+
+  Future<void> _importImageOverlay() async {
+    final result = await FilePicker.platform.pickFiles(type: FileType.image);
+    final path = result?.files.single.path;
+    if (path != null) setState(() { _overlayImagePath = path; _status = 'Image overlay added to preview.'; });
+  }
+
+  Future<void> _importVideoOverlay() async {
+    final result = await FilePicker.platform.pickFiles(type: FileType.video);
+    final path = result?.files.single.path;
+    if (path == null) return;
+    final next = VideoPlayerController.file(File(path));
+    try {
+      await next.initialize();
+      await _overlayVideoController?.dispose();
+      if (!mounted) { await next.dispose(); return; }
+      setState(() { _overlayVideoController = next; _overlayVideoPath = path; _status = 'Video overlay added to preview.'; });
+    } catch (error) {
+      await next.dispose();
+      if (mounted) setState(() => _status = 'Could not open overlay video: ' + error.toString());
+    }
+  }
+
+  Future<void> _toggleAudio() async {
+    final player = _audioController;
+    if (player == null || !player.value.isInitialized) return;
+    if (player.value.isPlaying) { await player.pause(); }
+    else {
+      if (player.value.position >= player.value.duration) await player.seekTo(Duration.zero);
+      await player.play();
+    }
+    if (mounted) setState(() {});
   }
 
   Future<void> _togglePlayback() async {
@@ -177,6 +273,21 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
             onPressed: _isExporting ? null : _importVideo,
             icon: const Icon(Icons.video_library_outlined),
           ),
+          PopupMenuButton<String>(
+            tooltip: 'Add media layer',
+            onSelected: (v) {
+              if (v == 'audio') _importAudio();
+              if (v == 'text') _addTextOverlay();
+              if (v == 'image') _importImageOverlay();
+              if (v == 'video') _importVideoOverlay();
+            },
+            itemBuilder: (ctx) => const [
+              PopupMenuItem(value: 'audio', child: Text('Import audio')),
+              PopupMenuItem(value: 'text', child: Text('Add text overlay')),
+              PopupMenuItem(value: 'image', child: Text('Add image overlay')),
+              PopupMenuItem(value: 'video', child: Text('Add video overlay')),
+            ],
+          ),
           IconButton(
             tooltip: 'Export MP4',
             onPressed: _videoPath == null || _isExporting ? null : _exportVideo,
@@ -192,11 +303,17 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
               width: double.infinity,
               color: Colors.black,
               child: initialized
-                  ? Center(
-                      child: AspectRatio(
-                        aspectRatio: controller!.value.aspectRatio,
-                        child: VideoPlayer(controller),
-                      ),
+                  ? Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Center(child: AspectRatio(aspectRatio: controller!.value.aspectRatio, child: VideoPlayer(controller))),
+                        if (_overlayImagePath != null)
+                          Positioned(right: 12, top: 12, width: 110, height: 80, child: Image.file(File(_overlayImagePath!), fit: BoxFit.contain)),
+                        if (_overlayVideoController?.value.isInitialized == true)
+                          Positioned(right: 12, bottom: 12, width: 120, height: 85, child: ClipRRect(borderRadius: BorderRadius.circular(8), child: VideoPlayer(_overlayVideoController!))),
+                        if (_overlayText != null)
+                          Positioned(left: 12, right: 12, bottom: 12, child: Text(_overlayText!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, shadows: [Shadow(blurRadius: 5, color: Colors.black)]))),
+                      ],
                     )
                   : Center(
                       child: Column(
@@ -253,6 +370,13 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                 bufferedColor: Colors.white30,
                 backgroundColor: Colors.white12,
               ),
+            ),
+          if (_audioController?.value.isInitialized == true)
+            ListTile(
+              dense: true,
+              leading: const Icon(Icons.music_note),
+              title: Text(_audioPath!.split(Platform.pathSeparator).last, maxLines: 1, overflow: TextOverflow.ellipsis),
+              trailing: IconButton(onPressed: _toggleAudio, icon: Icon(_audioController!.value.isPlaying ? Icons.pause : Icons.play_arrow)),
             ),
           Expanded(
             flex: 3,
@@ -347,10 +471,28 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                   SizedBox(
                     height: 132,
                     child: ListView.separated(
-                      itemCount: _tracks.length,
+                      itemCount: _tracks.length + (_videoPaths.length > 1 ? _videoPaths.length - 1 : 0) + (_audioPath == null ? 0 : 1) + (_overlayText == null ? 0 : 1) + (_overlayImagePath == null ? 0 : 1) + (_overlayVideoPath == null ? 0 : 1),
                       separatorBuilder: (context, index) =>
                           const SizedBox(height: 6),
                       itemBuilder: (context, index) {
+                        if (index >= _tracks.length) {
+                          final extra = index - _tracks.length;
+                          final extraVideoCount = _videoPaths.length > 1 ? _videoPaths.length - 1 : 0;
+                          if (extra < extraVideoCount) {
+                            final clipPath = _videoPaths[extra + 1];
+                            return ListTile(
+                              dense: true,
+                              leading: const Icon(Icons.movie_outlined),
+                              title: Text(clipPath.split(Platform.pathSeparator).last, maxLines: 1, overflow: TextOverflow.ellipsis),
+                              trailing: IconButton(onPressed: () => _selectVideo(clipPath), icon: const Icon(Icons.play_arrow)),
+                            );
+                          }
+                          return ListTile(
+                            dense: true,
+                            leading: Icon(extra == extraVideoCount ? Icons.music_note : Icons.layers),
+                            title: Text(extra == extraVideoCount ? 'Audio: ' + (_audioPath?.split(Platform.pathSeparator).last ?? '') : 'Overlay layer'),
+                          );
+                        }
                         final track = _tracks[index];
                         final isVideo = track.label == 'Video';
                         return Container(
