@@ -138,13 +138,13 @@ jobs:
 
           root_content = root_gradle.read_text()
           if is_kotlin_dsl:
-              # Apply after each Android subproject has finished evaluating so
-              # plugin build scripts cannot overwrite the compile SDK setting.
+              # Run after all projects are evaluated; registering afterEvaluate
+              # on an already evaluated plugin project causes a Gradle failure.
               override = """
           // VeCut compile SDK override
-          subprojects {
-              afterEvaluate {
-                  val androidExtension = extensions.findByName("android")
+          gradle.projectsEvaluated {
+              rootProject.subprojects.each { project ->
+                  val androidExtension = project.extensions.findByName("android")
                   val setter = androidExtension?.javaClass?.methods
                       ?.firstOrNull {
                           (it.name == "setCompileSdkVersion" || it.name == "setCompileSdk") &&
@@ -162,9 +162,9 @@ jobs:
           else:
               override = """
           // VeCut compile SDK override
-          subprojects {
-              afterEvaluate {
-                  def androidExtension = extensions.findByName('android')
+          gradle.projectsEvaluated {
+              rootProject.subprojects.each { project ->
+                  def androidExtension = project.extensions.findByName('android')
                   if (androidExtension != null) {
                       def setter = androidExtension.class.methods.find {
                           (it.name == 'setCompileSdkVersion' || it.name == 'setCompileSdk') &&
