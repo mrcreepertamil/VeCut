@@ -8,6 +8,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:video_player/video_player.dart';
 
 import '../models/ve_cut_project.dart';
+import '../models/media_asset.dart';
+import '../models/timeline_clip.dart';
+import '../services/media_import_service.dart';
 
 class EditorWorkspacePage extends StatefulWidget {
   const EditorWorkspacePage({super.key, required this.project});
@@ -23,6 +26,17 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
   VideoPlayerController? _audioController;
   VideoPlayerController? _overlayVideoController;
   final List<String> _videoPaths = [];
+  final List<MediaAsset> _mediaAssets = [];
+  final List<TimelineClip> _timelineClips = [];
+  final MediaImportService _mediaImporter = const MediaImportService();
+  int _selectedTrackIndex = 0;
+  int _audioStartMs = 0;
+  double _audioVolume = 1.0;
+  double _overlayX = 0.5;
+  double _overlayY = 0.5;
+  double _overlayScale = 1.0;
+  int _overlayStartMs = 0;
+  int _overlayDurationMs = 5000;
   String? _audioPath;
   String? _overlayImagePath;
   String? _overlayVideoPath;
@@ -72,37 +86,124 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
   }
 
   Future<void> _importVideo() async {
+    final assets = await _mediaImporter.pickVideos();
+    if (assets.isEmpty || !mounted) return;
+    setState(() {
+      _mediaAssets.addAll(assets);
+      _videoPaths.addAll(assets.map((asset) => asset.path));
+      _status = '${assets.length} video(s) added to Media Library.';
+    });
+    await _selectVideo(assets.first.path);
+  }
+
+  Future<void> _importImages() async {
     final result = await FilePicker.platform.pickFiles(
-      type: FileType.video,
+      type: FileType.image,
       allowMultiple: true,
     );
-    if (result == null || result.files.isEmpty) return;
-    final paths = result.files.where((f) => f.path != null).map((f) => f.path!).toList();
-    if (paths.isEmpty) return;
-    final path = paths.first;
-    final nextController = VideoPlayerController.file(File(path));
-    try {
-      await nextController.initialize();
-      await _controller?.dispose();
-      if (!mounted) {
-        await nextController.dispose();
-        return;
-      }
-      setState(() {
-        _controller = nextController;
-        _videoPaths.addAll(paths);
-        _videoPath = path;
-        final milliseconds = nextController.value.duration.inMilliseconds;
-        _trimRange = RangeValues(0, milliseconds.toDouble());
-        _status = paths.length.toString() + ' video clip(s) imported. Select another clip in the timeline to preview it.';
-        _exportedPath = null;
-      });
-    } catch (error) {
-      await nextController.dispose();
-      if (mounted) {
-        setState(() => _status = 'Could not open this video: $error');
-      }
-    }
+    if (result == null || !mounted) return;
+    final assets = result.files.where((file) => file.path != null).map((file) =>
+      MediaAsset(
+        id: '${DateTime.now().microsecondsSinceEpoch}_${file.name}',
+        path: file.path!,
+        type: MediaAssetType.image,
+        displayName: file.name,
+      ),
+    ).toList();
+    if (assets.isEmpty) return;
+    setState(() {
+      _mediaAssets.addAll(assets);
+      _status = '${assets.length} image(s) added to Media Library.';
+    });
+  }
+
+  Future<void> _showMediaLibrary() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.of(sheetContext).size.height * 0.65,
+          child: Column(
+            children: [
+              ListTile(
+                title: const Text('Media Library'),
+                subtitle: Text('${_mediaAssets.length} imported asset(s)'),
+                trailing: IconButton(
+                  tooltip: 'Close',
+                  onPressed: () => Navigator.pop(sheetContext),
+                  icon: const Icon(Icons.close),
+                ),
+              ),
+              Wrap(
+                spacing: 8,
+                children: [
+                  TextButton.icon(onPressed: () { Navigator.pop(sheetContext); _importVideo(); }, icon: const Icon(Icons.video_library), label: const Text('Videos')),
+                  TextButton.icon(onPressed: () { Navigator.pop(sheetContext); _importImages(); }, icon: const Icon(Icons.image), label: const Text('Images')),
+                  TextButton.icon(onPressed: () { Navigator.pop(sheetContext); _importAudio(); }, icon: const Icon(Icons.audio_file), label: const Text('Audio')),
+                ],
+              ),
+              Expanded(
+                child: _mediaAssets.isEmpty
+                  ? const Center(child: Text('No media yet. Import images, videos, or audio.'))
+                  : ListView.builder(
+                      itemCount: _mediaAssets.length,
+                      itemBuilder: (context, index) {
+                        final asset = _mediaAssets[index];
+                        final icon = switch (asset.type) {
+                          MediaAssetType.video => Icons.movie_outlined,
+                          MediaAssetType.audio => Icons.music_note,
+                          MediaAssetType.image => Icons.image_outlined,
+                        };
+                        return ListTile(
+                          leading: Icon(icon),
+                          title: Text(asset.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                          subtitle: Text(asset.type.name.toUpperCase()),
+                          trailing: IconButton(
+                            tooltip: 'Add to timeline',
+                            icon: const Icon(Icons.add_circle_outline),
+                            onPressed: () {
+                              _addAssetToTimeline(asset);
+                              Navigator.pop(sheetContext);
+                            },
+                          ),
+                          onTap: asset.type == MediaAssetType.video
+                            ? () { Navigator.pop(sheetContext); _selectVideo(asset.path); }
+                            : null,
+                        );
+                      },
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _addAssetToTimeline(MediaAsset asset) {
+    final clip = TimelineClip(
+      id: '${DateTime.now().microsecondsSinceEpoch}',
+      filePath: asset.path,
+      startMs: _timelineClips.isEmpty
+        ? 0
+        : _timelineClips.map((clip) => clip.startMs + (clip.durationMs ?? 5000)).reduce((a, b) => a > b ? a : b),
+      sourceInMs: 0,
+      sourceOutMs: asset.durationMs ?? (asset.type == MediaAssetType.image ? 5000 : null),
+    );
+    setState(() {
+      _timelineClips.add(clip);
+      if (asset.type == MediaAssetType.image) _overlayImagePath = asset.path;
+      if (asset.type == MediaAssetType.video && _videoPath == null) _videoPath = asset.path;
+      _status = '${asset.name} added to timeline.';
+    });
+  }
+
+  void _removeTimelineClip(TimelineClip clip) {
+    setState(() {
+      _timelineClips.removeWhere((item) => item.id == clip.id);
+      _status = 'Clip removed from timeline.';
+    });
   }
 
   Future<void> _selectVideo(String path) async {
@@ -132,7 +233,12 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
       await next.initialize();
       await _audioController?.dispose();
       if (!mounted) { await next.dispose(); return; }
-      setState(() { _audioController = next; _audioPath = path; _status = 'Audio imported. Use its play button to preview.'; });
+      setState(() {
+        _audioController = next;
+        _audioPath = path;
+        _mediaAssets.add(MediaAsset(id: '${DateTime.now().microsecondsSinceEpoch}', path: path, type: MediaAssetType.audio));
+        _status = 'Audio imported to Media Library. Adjust its timeline start and volume below.';
+      });
     } catch (error) {
       await next.dispose();
       if (mounted) setState(() => _status = 'Could not open audio: ' + error.toString());
@@ -154,13 +260,22 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
     );
     input.dispose();
     if (value == null) return;
-    setState(() { _overlayText = value.isEmpty ? null : value; _status = 'Text overlay updated.'; });
+    setState(() {
+      _overlayText = value.isEmpty ? null : value;
+      _status = 'Text overlay updated.';
+    });
   }
 
   Future<void> _importImageOverlay() async {
     final result = await FilePicker.platform.pickFiles(type: FileType.image);
     final path = result?.files.single.path;
-    if (path != null) setState(() { _overlayImagePath = path; _status = 'Image overlay added to preview.'; });
+    if (path != null) {
+      setState(() {
+        _overlayImagePath = path;
+        _mediaAssets.add(MediaAsset(id: '${DateTime.now().microsecondsSinceEpoch}', path: path, type: MediaAssetType.image));
+        _status = 'Image overlay added to preview and Media Library.';
+      });
+    }
   }
 
   Future<void> _importVideoOverlay() async {
@@ -172,7 +287,12 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
       await next.initialize();
       await _overlayVideoController?.dispose();
       if (!mounted) { await next.dispose(); return; }
-      setState(() { _overlayVideoController = next; _overlayVideoPath = path; _status = 'Video overlay added to preview.'; });
+      setState(() {
+        _overlayVideoController = next;
+        _overlayVideoPath = path;
+        _mediaAssets.add(MediaAsset(id: '${DateTime.now().microsecondsSinceEpoch}', path: path, type: MediaAssetType.video));
+        _status = 'Video overlay added to preview and Media Library.';
+      });
     } catch (error) {
       await next.dispose();
       if (mounted) setState(() => _status = 'Could not open overlay video: ' + error.toString());
@@ -273,10 +393,16 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
             onPressed: _isExporting ? null : _importVideo,
             icon: const Icon(Icons.video_library_outlined),
           ),
+          IconButton(
+            tooltip: 'Media Library',
+            onPressed: _showMediaLibrary,
+            icon: const Icon(Icons.video_library_outlined),
+          ),
           PopupMenuButton<String>(
             tooltip: 'Add media layer',
             onSelected: (v) {
               if (v == 'audio') _importAudio();
+              if (v == 'image') _importImages();
               if (v == 'text') _addTextOverlay();
               if (v == 'image') _importImageOverlay();
               if (v == 'video') _importVideoOverlay();
@@ -284,7 +410,7 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
             itemBuilder: (ctx) => const [
               PopupMenuItem(value: 'audio', child: Text('Import audio')),
               PopupMenuItem(value: 'text', child: Text('Add text overlay')),
-              PopupMenuItem(value: 'image', child: Text('Add image overlay')),
+              PopupMenuItem(value: 'image', child: Text('Import images')),
               PopupMenuItem(value: 'video', child: Text('Add video overlay')),
             ],
           ),
@@ -308,11 +434,31 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                       children: [
                         Center(child: AspectRatio(aspectRatio: controller!.value.aspectRatio, child: VideoPlayer(controller))),
                         if (_overlayImagePath != null)
-                          Positioned(right: 12, top: 12, width: 110, height: 80, child: Image.file(File(_overlayImagePath!), fit: BoxFit.contain)),
+                          Positioned(
+                            left: (_overlayX * 220).clamp(0, 220),
+                            top: (_overlayY * 130).clamp(0, 130),
+                            width: 110 * _overlayScale,
+                            height: 80 * _overlayScale,
+                            child: Image.file(File(_overlayImagePath!), fit: BoxFit.contain),
+                          ),
                         if (_overlayVideoController?.value.isInitialized == true)
-                          Positioned(right: 12, bottom: 12, width: 120, height: 85, child: ClipRRect(borderRadius: BorderRadius.circular(8), child: VideoPlayer(_overlayVideoController!))),
+                          Positioned(
+                            left: (_overlayX * 220).clamp(0, 220),
+                            top: (_overlayY * 130).clamp(0, 130),
+                            width: 120 * _overlayScale,
+                            height: 85 * _overlayScale,
+                            child: ClipRRect(borderRadius: BorderRadius.circular(8), child: VideoPlayer(_overlayVideoController!)),
+                          ),
                         if (_overlayText != null)
-                          Positioned(left: 12, right: 12, bottom: 12, child: Text(_overlayText!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, shadows: [Shadow(blurRadius: 5, color: Colors.black)]))),
+                          Positioned(
+                            left: (_overlayX * 220).clamp(0, 220),
+                            top: (_overlayY * 130).clamp(0, 130),
+                            child: Transform.scale(
+                              scale: _overlayScale,
+                              alignment: Alignment.topLeft,
+                              child: Text(_overlayText!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, shadows: [Shadow(blurRadius: 5, color: Colors.black)])),
+                            ),
+                          ),
                       ],
                     )
                   : Center(
@@ -394,6 +540,11 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                           style: TextStyle(
                               fontWeight: FontWeight.bold,
                               letterSpacing: 1.5)),
+                      IconButton(
+                        tooltip: 'Open Media Library',
+                        onPressed: _showMediaLibrary,
+                        icon: const Icon(Icons.video_library_outlined),
+                      ),
                       const Spacer(),
                       Text('${_tracks.length}/$_trackLimit tracks'),
                       const SizedBox(width: 8),
@@ -575,6 +726,126 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                       },
                     ),
                   ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      const Text('MEDIA LIBRARY', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.1)),
+                      const Spacer(),
+                      TextButton.icon(onPressed: _showMediaLibrary, icon: const Icon(Icons.folder_open, size: 18), label: Text('${_mediaAssets.length} assets')),
+                      IconButton(onPressed: _importImages, tooltip: 'Import images', icon: const Icon(Icons.add_photo_alternate_outlined)),
+                    ],
+                  ),
+                  if (_mediaAssets.isNotEmpty)
+                    SizedBox(
+                      height: 76,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _mediaAssets.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 8),
+                        itemBuilder: (context, index) {
+                          final asset = _mediaAssets[index];
+                          final isSelected = asset.path == _videoPath || asset.path == _overlayImagePath;
+                          return InkWell(
+                            onTap: () {
+                              if (asset.type == MediaAssetType.video) _selectVideo(asset.path);
+                              else if (asset.type == MediaAssetType.image) setState(() { _overlayImagePath = asset.path; _status = 'Selected image overlay.'; });
+                              else setState(() { _audioPath = asset.path; });
+                            },
+                            onLongPress: () => _addAssetToTimeline(asset),
+                            child: Container(
+                              width: 142,
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: isSelected ? Colors.deepPurple.withOpacity(0.28) : const Color(0xFF292432),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: isSelected ? Colors.deepPurpleAccent : Colors.white12),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(asset.type == MediaAssetType.video ? Icons.movie : asset.type == MediaAssetType.image ? Icons.image : Icons.music_note, size: 20),
+                                  const SizedBox(width: 6),
+                                  Expanded(child: Text(asset.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11))),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    )
+                  else
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Text('Import media to populate your library. Long-press an asset to add it to the timeline.', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                    ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Text('TIMELINE CLIPS', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.1)),
+                      const Spacer(),
+                      Text('${_timelineClips.length} placed'),
+                    ],
+                  ),
+                  if (_timelineClips.isNotEmpty)
+                    SizedBox(
+                      height: 104,
+                      child: ListView.builder(
+                        itemCount: _timelineClips.length,
+                        itemBuilder: (context, index) {
+                          final clip = _timelineClips[index];
+                          final name = clip.filePath.split(Platform.pathSeparator).last;
+                          return ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.movie_edit_outlined),
+                            title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                            subtitle: Text('Start ${(clip.startMs / 1000).toStringAsFixed(1)}s • Duration ${clip.durationMs == null ? 'source' : (clip.durationMs! / 1000).toStringAsFixed(1) + 's'}'),
+                            trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => _removeTimelineClip(clip)),
+                          );
+                        },
+                      ),
+                    ),
+                  if (_audioPath != null) ...[
+                    const SizedBox(height: 8),
+                    const Text('AUDIO PLACEMENT', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.1)),
+                    Row(
+                      children: [
+                        const SizedBox(width: 72, child: Text('Start')),
+                        Expanded(child: Slider(
+                          value: _audioStartMs.toDouble().clamp(0, 60000),
+                          min: 0, max: 60000, divisions: 60,
+                          label: '${(_audioStartMs / 1000).toStringAsFixed(0)}s',
+                          onChanged: (value) => setState(() => _audioStartMs = value.round()),
+                        )),
+                        Text('${(_audioStartMs / 1000).toStringAsFixed(0)}s'),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        const SizedBox(width: 72, child: Text('Volume')),
+                        Expanded(child: Slider(value: _audioVolume, min: 0, max: 1, onChanged: (value) => setState(() => _audioVolume = value))),
+                        Text('${(_audioVolume * 100).round()}%'),
+                      ],
+                    ),
+                    Text('Audio placement is stored in the editor controls; synchronized mixed-audio export is not connected yet.', style: TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
+                  if (_overlayImagePath != null || _overlayVideoPath != null || _overlayText != null) ...[
+                    const SizedBox(height: 8),
+                    const Text('OVERLAY CONTROLS', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.1)),
+                    Row(children: [const SizedBox(width: 72, child: Text('Horizontal')), Expanded(child: Slider(value: _overlayX, min: 0, max: 1, onChanged: (v) => setState(() => _overlayX = v)))]),
+                    Row(children: [const SizedBox(width: 72, child: Text('Vertical')), Expanded(child: Slider(value: _overlayY, min: 0, max: 1, onChanged: (v) => setState(() => _overlayY = v)))]),
+                    Row(children: [const SizedBox(width: 72, child: Text('Scale')), Expanded(child: Slider(value: _overlayScale, min: 0.25, max: 2, onChanged: (v) => setState(() => _overlayScale = v)))]),
+                    Row(children: [
+                      const SizedBox(width: 72, child: Text('Start')),
+                      Expanded(child: Slider(value: _overlayStartMs.toDouble().clamp(0, 60000), min: 0, max: 60000, divisions: 60, onChanged: (v) => setState(() => _overlayStartMs = v.round()))),
+                      Text('${(_overlayStartMs / 1000).round()}s'),
+                    ]),
+                    Row(children: [
+                      const SizedBox(width: 72, child: Text('Duration')),
+                      Expanded(child: Slider(value: _overlayDurationMs.toDouble().clamp(1000, 30000), min: 1000, max: 30000, divisions: 29, onChanged: (v) => setState(() => _overlayDurationMs = v.round()))),
+                      Text('${(_overlayDurationMs / 1000).round()}s'),
+                    ]),
+                    const Text('Overlay controls currently affect preview placement/timing settings. Full compositing into the exported timeline remains future work.', style: TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
                   const SizedBox(height: 14),
                   const Text('TRIM CLIP',
                       style: TextStyle(
