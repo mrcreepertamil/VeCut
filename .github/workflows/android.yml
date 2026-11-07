@@ -13,10 +13,16 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.47.9'
 
       - name: Generate Android platform files
         working-directory: app
@@ -38,17 +44,18 @@ jobs:
           replacements = (
               ("compileSdk = flutter.compileSdkVersion", "compileSdk = 36"),
               ("compileSdkVersion flutter.compileSdkVersion", "compileSdkVersion 36"),
+              ("minSdk = flutter.minSdkVersion", "minSdk = 24"),
+              ("minSdkVersion flutter.minSdkVersion", "minSdkVersion 24"),
           )
           for old_value, new_value in replacements:
               if old_value in content:
-                  gradle_file.write_text(content.replace(old_value, new_value))
-                  print(f"Updated {gradle_file} to compileSdk 36")
-                  break
-          else:
-              if "compileSdk = 36" in content or "compileSdkVersion 36" in content:
-                  print("Android compileSdk is already 36")
-              else:
-                  raise SystemExit("Could not identify the Flutter compileSdk setting.")
+                  content = content.replace(old_value, new_value)
+          if "compileSdk = 36" not in content and "compileSdkVersion 36" not in content:
+              raise SystemExit("Could not set Android compileSdk to 36.")
+          if "minSdk = 24" not in content and "minSdkVersion 24" not in content:
+              raise SystemExit("Could not set Android minSdk to 24.")
+          gradle_file.write_text(content)
+          print(f"Configured {gradle_file}: compileSdk 36, minSdk 24")
           PY
 
       - name: Install dependencies
