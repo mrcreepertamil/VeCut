@@ -384,9 +384,10 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
               width: double.infinity,
               color: const Color(0xFF181820),
               padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                   Row(
                     children: [
                       const Text('TIMELINE',
@@ -591,7 +592,7 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                         ? (value) => setState(() => _trimRange = value)
                         : null,
                   ),
-                  const Spacer(),
+                  const SizedBox(height: 8),
                   Text(
                     _status,
                     maxLines: 2,
@@ -617,7 +618,8 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                       label: Text(_isExporting ? 'Exporting…' : 'Export MP4'),
                     ),
                   ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
