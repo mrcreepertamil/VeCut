@@ -820,7 +820,7 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                           return ListTile(
                             dense: true,
                             contentPadding: EdgeInsets.zero,
-                            leading: const Icon(Icons.movie_edit_outlined),
+                            leading: const Icon(Icons.movie_outlined),
                             title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
                             subtitle: Text('Start ${(clip.startMs / 1000).toStringAsFixed(1)}s • Duration ${clip.durationMs == null ? 'source' : (clip.durationMs! / 1000).toStringAsFixed(1) + 's'}'),
                             trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => _removeTimelineClip(clip)),
