@@ -382,8 +382,8 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                                     padding: const EdgeInsets.symmetric(horizontal: 8),
                                     decoration: BoxDecoration(
                                       color: isVideo
-                                          ? Colors.deepPurple.withValues(alpha: 0.35)
-                                          : Colors.white.withValues(alpha: 0.06),
+                                          ? Colors.deepPurple.withOpacity(0.35)
+                                          : Colors.white.withOpacity(0.06),
                                       borderRadius: BorderRadius.circular(5),
                                     ),
                                     alignment: Alignment.centerLeft,
