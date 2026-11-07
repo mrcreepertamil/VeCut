@@ -129,23 +129,72 @@ jobs:
           # Flutter plugins are separate Android subprojects. Override their
           # compile SDK too, not just the main app module.
           root_gradle = Path("android/build.gradle")
+          is_kotlin_dsl = False
           if not root_gradle.exists():
-              raise SystemExit("Could not find the generated root Android Gradle file.")
+              root_gradle = Path("android/build.gradle.kts")
+              is_kotlin_dsl = True
+          if not root_gradle.exists():
+              raise SystemExit("Could not find the generated root Android Gradle file (.gradle or .gradle.kts).")
+
           root_content = root_gradle.read_text()
-          override = """
+          if is_kotlin_dsl:
+              # Register after each Android plugin is applied. Reflection keeps
+              # this script compatible with both older and newer AGP APIs.
+              override = """
           subprojects {
-              afterEvaluate { project ->
-                  if (project.hasProperty('android')) {
-                      project.android {
-                          compileSdkVersion 36
+              plugins.withId("com.android.library") {
+                  val androidExtension = extensions.findByName("android")
+                  androidExtension?.javaClass?.methods
+                      ?.firstOrNull {
+                          (it.name == "setCompileSdkVersion" || it.name == "setCompileSdk") &&
+                          it.parameterCount == 1 &&
+                          (it.parameterTypes[0] == Int::class.javaPrimitiveType ||
+                           it.parameterTypes[0] == Int::class.javaObjectType)
+                      }?.invoke(androidExtension, 36)
+              }
+              plugins.withId("com.android.application") {
+                  val androidExtension = extensions.findByName("android")
+                  androidExtension?.javaClass?.methods
+                      ?.firstOrNull {
+                          (it.name == "setCompileSdkVersion" || it.name == "setCompileSdk") &&
+                          it.parameterCount == 1 &&
+                          (it.parameterTypes[0] == Int::class.javaPrimitiveType ||
+                           it.parameterTypes[0] == Int::class.javaObjectType)
+                      }?.invoke(androidExtension, 36)
+              }
+          }
+          """
+              marker = "plugins.withId(\"com.android.library\")"
+          else:
+              override = """
+          subprojects {
+              plugins.withId('com.android.library') {
+                  def androidExtension = extensions.findByName('android')
+                  if (androidExtension != null) {
+                      def setter = androidExtension.class.methods.find {
+                          (it.name == 'setCompileSdkVersion' || it.name == 'setCompileSdk') &&
+                          it.parameterCount == 1
                       }
+                      setter?.invoke(androidExtension, 36)
+                  }
+              }
+              plugins.withId('com.android.application') {
+                  def androidExtension = extensions.findByName('android')
+                  if (androidExtension != null) {
+                      def setter = androidExtension.class.methods.find {
+                          (it.name == 'setCompileSdkVersion' || it.name == 'setCompileSdk') &&
+                          it.parameterCount == 1
+                      }
+                      setter?.invoke(androidExtension, 36)
                   }
               }
           }
           """
-          if "compileSdkVersion 36" not in root_content:
+              marker = "plugins.withId('com.android.library')"
+
+          if marker not in root_content:
               root_gradle.write_text(root_content.rstrip() + "\\n\\n" + override)
-          print("Configured all Android subprojects to compile against SDK 36.")
+          print(f"Configured Android subprojects to compile against SDK 36 using {root_gradle}.")
           PY
 
       - name: Install dependencies
