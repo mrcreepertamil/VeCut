@@ -179,13 +179,13 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
       startMs: _timelineClips.isEmpty
         ? 0
         : _timelineClips.map((clip) => clip.startMs + (clip.durationMs ?? 5000)).reduce((a, b) => a > b ? a : b),
-      trackId: _tracks[_selectedTrackIndex.clamp(0, _tracks.length - 1)].id,
+      trackId: _tracks[_selectedTrackIndex.clamp(0, _tracks.length - 1).toInt()].id,
       sourceInMs: 0,
       sourceOutMs: asset.durationMs ?? (asset.type == MediaAssetType.image ? 5000 : null),
     );
     setState(() {
       _timelineClips.add(clip);
-      _tracks[_selectedTrackIndex.clamp(0, _tracks.length - 1)].clips.add(clip);
+      _tracks[_selectedTrackIndex.clamp(0, _tracks.length - 1).toInt()].clips.add(clip);
       if (asset.type == MediaAssetType.image) _overlayImagePath = asset.path;
       if (asset.type == MediaAssetType.video && _videoPath == null) _videoPath = asset.path;
       _status = '${asset.name} added to timeline.';
@@ -451,8 +451,8 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                           ),
                         if (overlayVisible && _overlayVideoController?.value.isInitialized == true)
                           Positioned(
-                            left: (_overlayX * 220).clamp(0, 220),
-                            top: (_overlayY * 130).clamp(0, 130),
+                            left: (_overlayX * 220).clamp(0, 220).toDouble(),
+                            top: (_overlayY * 130).clamp(0, 130).toDouble(),
                             width: 120 * _overlayScale,
                             height: 85 * _overlayScale,
                             child: ClipRRect(borderRadius: BorderRadius.circular(8), child: VideoPlayer(_overlayVideoController!)),
