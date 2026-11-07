@@ -1,15 +1,27 @@
 # VeCut
 
-VeCut is a Flutter-based cross-platform video editor project, targeting Android first and Windows later.
+**VeCut is an in-development, cross-platform video editor built with Flutter.** The project aims to provide a simple editing workspace for creating and organizing video projects, with Android as the first target and Windows planned as a later platform.
+
+## Project goals
+
+- Create video projects with configurable resolution and frame rate.
+- Import and organize video and audio media.
+- Preview clips and arrange them on a multi-track timeline.
+- Add editing tools such as trimming, splitting, and transitions.
+- Export finished videos.
 
 ## Current status
 
-The app currently includes:
-- A dark-themed home screen
-- New-project setup with resolution and frame-rate choices
-- A basic editor workspace shell
+VeCut is at an early development stage. The repository currently contains the Flutter app foundation, a dark-themed home screen, project setup, and a basic editor workspace layout.
 
-**This is an early UI foundation, not yet a functioning video editor.** Media importing, video playback, timeline editing, project saving, and exporting still need to be implemented.
+**The editing features listed above are goals, not completed features.** Media importing, real video playback, timeline editing, project saving, and video exporting still need to be implemented.
+
+## Technology
+
+- **Flutter / Dart** for the application interface.
+- **Android** as the initial target platform.
+- **Windows** as a planned desktop target.
+- A dedicated media-processing engine is planned for later development.
 
 ## Run locally
 
