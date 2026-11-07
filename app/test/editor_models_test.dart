@@ -12,9 +12,11 @@ void main() {
         filePath: '/media/intro.mp4',
         sourceInMs: 1000,
         sourceOutMs: 6000,
+        trackId: 'video-track',
       );
 
       expect(clip.durationMs, 5000);
+      expect(clip.copyWith(startMs: 2500).trackId, 'video-track');
       expect(clip.copyWith(startMs: 2500).startMs, 2500);
     });
   });
