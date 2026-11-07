@@ -16,6 +16,12 @@ VeCut is at an early development stage. The repository currently contains the Fl
 
 **The editing features listed above are goals, not completed features.** Media importing, real video playback, timeline editing, project saving, and video exporting still need to be implemented.
 
+## Plugin development
+
+VeCut is planned to support community plugins written in JavaScript. The initial plugin manifest, API draft, and example plugin are in the [plugins folder](plugins/).
+
+**The plugin runtime and plugin manager are not implemented yet.** The current JavaScript files define the proposed developer format; they cannot run inside VeCut yet.
+
 ## Technology
 
 - **Flutter / Dart** for the application interface.
