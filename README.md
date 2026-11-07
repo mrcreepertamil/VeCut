@@ -1,26 +1,34 @@
 # VeCut
 
-**VeCut is an in-development, cross-platform video editor built with Flutter.** The project aims to provide a simple editing workspace for creating and organizing video projects, with Android as the first target and Windows planned as a later platform.
+**VeCut is an in-development, cross-platform video editor built with Flutter.** Android is the first target; Windows is planned.
 
 ## Project goals
 
-- Create video projects with configurable resolution and frame rate.
-- Import and organize video and audio media.
-- Preview clips and arrange them on a multi-track timeline.
-- Add editing tools such as trimming, splitting, and transitions.
+- Create projects with configurable resolution and frame rate.
+- Import and organize video, audio, and image media.
+- Preview clips and build a multi-track timeline.
+- Add text and visual overlays.
+- Trim, split, and arrange clips.
 - Export finished videos.
 
-## Current status
+## Current development status
 
-VeCut is at an early development stage. The repository currently contains the Flutter app foundation, a dark-themed home screen, project setup, and a basic editor workspace layout.
+The current editor workspace supports importing multiple video files, previewing a selected video, basic trimming and single-clip MP4 export. It also supports audio preview, text overlays, and image/video overlays in the preview.
 
-**The editing features listed above are goals, not completed features.** Media importing, real video playback, timeline editing, project saving, and video exporting still need to be implemented.
+The following are **not yet complete**:
+- A continuous, synchronized multi-track timeline.
+- Editing audio position, duration, and volume against the video.
+- Overlay timing, transform controls, and compositing into exported video.
+- Exporting the complete edited timeline rather than one trimmed source clip.
+- Saving and reopening editable projects.
 
-## Plugin development
+Supporting timeline, media-asset, and overlay data models plus a shared media picker service are being added as foundations. Their existence does not mean the full timeline or compositing engine is finished.
 
-VeCut is planned to support community plugins written in JavaScript. The initial plugin manifest, API draft, and example plugin are in the [plugins folder](plugins/).
+## Community plugins
 
-**The plugin runtime and plugin manager are not implemented yet.** The current JavaScript files define the proposed developer format; they cannot run inside VeCut yet.
+VeCut is planned to support community plugins written in JavaScript. The plugin manifest, API draft, and example are in the [plugins folder](plugins/).
+
+**The plugin runtime and plugin manager are not implemented yet.** The example files describe a proposed format and cannot currently run inside VeCut.
 
 ## Technology
 
