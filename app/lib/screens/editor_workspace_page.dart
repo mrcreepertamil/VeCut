@@ -273,7 +273,7 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                     values: _trimRange,
                     min: 0,
                     max: maxMs,
-                    divisions: maxMs > 1 ? maxMs.round().clamp(1, 1000) : 1,
+                    divisions: maxMs > 1 ? maxMs.round().clamp(1, 1000).toInt() : 1,
                     labels: RangeLabels(
                       _timestamp(Duration(milliseconds: _trimRange.start.round())),
                       _timestamp(Duration(milliseconds: _trimRange.end.round())),
