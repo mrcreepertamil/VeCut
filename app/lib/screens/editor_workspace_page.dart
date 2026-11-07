@@ -262,18 +262,6 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
     });
   }
 
-  Future<void> _importImageOverlay() async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.image);
-    final path = result?.files.single.path;
-    if (path != null) {
-      setState(() {
-        _overlayImagePath = path;
-        _mediaAssets.add(MediaAsset(id: '${DateTime.now().microsecondsSinceEpoch}', path: path, type: MediaAssetType.image));
-        _status = 'Image overlay added to preview and Media Library.';
-      });
-    }
-  }
-
   Future<void> _importVideoOverlay() async {
     final result = await FilePicker.platform.pickFiles(type: FileType.video);
     final path = result?.files.single.path;
