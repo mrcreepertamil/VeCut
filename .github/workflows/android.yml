@@ -138,62 +138,51 @@ jobs:
 
           root_content = root_gradle.read_text()
           if is_kotlin_dsl:
-              # Register after each Android plugin is applied. Reflection keeps
-              # this script compatible with both older and newer AGP APIs.
+              # Apply after each Android subproject has finished evaluating so
+              # plugin build scripts cannot overwrite the compile SDK setting.
               override = """
+          // VeCut compile SDK override
           subprojects {
-              plugins.withId("com.android.library") {
+              afterEvaluate {
                   val androidExtension = extensions.findByName("android")
-                  androidExtension?.javaClass?.methods
+                  val setter = androidExtension?.javaClass?.methods
                       ?.firstOrNull {
                           (it.name == "setCompileSdkVersion" || it.name == "setCompileSdk") &&
                           it.parameterCount == 1 &&
                           (it.parameterTypes[0] == Int::class.javaPrimitiveType ||
                            it.parameterTypes[0] == Int::class.javaObjectType)
-                      }?.invoke(androidExtension, 36)
-              }
-              plugins.withId("com.android.application") {
-                  val androidExtension = extensions.findByName("android")
-                  androidExtension?.javaClass?.methods
-                      ?.firstOrNull {
-                          (it.name == "setCompileSdkVersion" || it.name == "setCompileSdk") &&
-                          it.parameterCount == 1 &&
-                          (it.parameterTypes[0] == Int::class.javaPrimitiveType ||
-                           it.parameterTypes[0] == Int::class.javaObjectType)
-                      }?.invoke(androidExtension, 36)
+                      }
+                  if (androidExtension != null && setter == null) {
+                      throw GradleException("Could not find an Android compile SDK setter for ${project.name}")
+                  }
+                  setter?.invoke(androidExtension, 36)
               }
           }
           """
-              marker = "plugins.withId(\"com.android.library\")"
           else:
               override = """
+          // VeCut compile SDK override
           subprojects {
-              plugins.withId('com.android.library') {
+              afterEvaluate {
                   def androidExtension = extensions.findByName('android')
                   if (androidExtension != null) {
                       def setter = androidExtension.class.methods.find {
                           (it.name == 'setCompileSdkVersion' || it.name == 'setCompileSdk') &&
-                          it.parameterCount == 1
+                          it.parameterCount == 1 &&
+                          (it.parameterTypes[0] == Integer.TYPE || it.parameterTypes[0] == Integer)
                       }
-                      setter?.invoke(androidExtension, 36)
-                  }
-              }
-              plugins.withId('com.android.application') {
-                  def androidExtension = extensions.findByName('android')
-                  if (androidExtension != null) {
-                      def setter = androidExtension.class.methods.find {
-                          (it.name == 'setCompileSdkVersion' || it.name == 'setCompileSdk') &&
-                          it.parameterCount == 1
+                      if (setter == null) {
+                          throw new GradleException("Could not find an Android compile SDK setter for ${project.name}")
                       }
-                      setter?.invoke(androidExtension, 36)
+                      setter.invoke(androidExtension, 36)
                   }
               }
           }
           """
-              marker = "plugins.withId('com.android.library')"
+          marker = "// VeCut compile SDK override"
 
           if marker not in root_content:
-              root_gradle.write_text(root_content.rstrip() + "\n\n" + override)
+              root_gradle.write_text(root_content.rstrip() + "\\n\\n" + override)
           print(f"Configured Android subprojects to compile against SDK 36 using {root_gradle}.")
           PY
 
