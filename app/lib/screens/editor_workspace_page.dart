@@ -26,14 +26,28 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
   String _status = 'Import a video to begin editing.';
   String? _exportedPath;
   static const int _freeTrackLimit = 12;
+  static const int _proTrackLimit = 36;
+
+  // Connect this to VeCut's subscription entitlement when Pro billing is added.
+  // Until then, every installation uses the Free limit.
+  static const bool _isProUser = false;
+
+  int get _trackLimit => _isProUser ? _proTrackLimit : _freeTrackLimit;
+
   final List<_TimelineTrack> _tracks = [
     const _TimelineTrack(label: 'Video', icon: Icons.movie_outlined),
   ];
 
   void _addTrack(String label, IconData icon) {
-    if (_tracks.length >= _freeTrackLimit) {
+    if (_tracks.length >= _trackLimit) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Free projects support up to 12 tracks.')),
+        SnackBar(
+          content: Text(
+            _isProUser
+                ? 'Pro projects support up to 36 tracks.'
+                : 'Free projects support up to 12 tracks. Upgrade to Pro for 36.',
+          ),
+        ),
       );
       return;
     }
@@ -256,7 +270,7 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                               fontWeight: FontWeight.bold,
                               letterSpacing: 1.5)),
                       const Spacer(),
-                      Text('${_tracks.length}/$_freeTrackLimit tracks'),
+                      Text('${_tracks.length}/$_trackLimit tracks'),
                       const SizedBox(width: 8),
                       PopupMenuButton<String>(
                         tooltip: 'Add stack',
