@@ -25,6 +25,20 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
   bool _isExporting = false;
   String _status = 'Import a video to begin editing.';
   String? _exportedPath;
+  static const int _freeTrackLimit = 12;
+  final List<_TimelineTrack> _tracks = [
+    const _TimelineTrack(label: 'Video', icon: Icons.movie_outlined),
+  ];
+
+  void _addTrack(String label, IconData icon) {
+    if (_tracks.length >= _freeTrackLimit) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Free projects support up to 12 tracks.')),
+      );
+      return;
+    }
+    setState(() => _tracks.add(_TimelineTrack(label: label, icon: icon)));
+  }
 
   Duration get _duration => _controller?.value.duration ?? Duration.zero;
 
@@ -242,7 +256,33 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                               fontWeight: FontWeight.bold,
                               letterSpacing: 1.5)),
                       const Spacer(),
-                      Text(_videoPath == null ? 'No clip' : '1 video clip'),
+                      Text('${_tracks.length}/$_freeTrackLimit tracks'),
+                      const SizedBox(width: 8),
+                      PopupMenuButton<String>(
+                        tooltip: 'Add stack',
+                        icon: const Icon(Icons.add_box_outlined),
+                        onSelected: (value) {
+                          switch (value) {
+                            case 'Overlay':
+                              _addTrack(value, Icons.layers_outlined);
+                            case 'Text':
+                              _addTrack(value, Icons.title_rounded);
+                            case 'Audio':
+                              _addTrack(value, Icons.music_note_rounded);
+                            case 'Sticker':
+                              _addTrack(value, Icons.sticky_note_2_outlined);
+                            case 'Effect':
+                              _addTrack(value, Icons.auto_awesome_outlined);
+                          }
+                        },
+                        itemBuilder: (context) => const [
+                          PopupMenuItem(value: 'Overlay', child: Text('Overlay stack')),
+                          PopupMenuItem(value: 'Text', child: Text('Text stack')),
+                          PopupMenuItem(value: 'Audio', child: Text('Audio stack')),
+                          PopupMenuItem(value: 'Sticker', child: Text('Sticker stack')),
+                          PopupMenuItem(value: 'Effect', child: Text('Effect stack')),
+                        ],
+                      ),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -290,23 +330,92 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Container(
-                    height: 48,
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF292432),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.deepPurpleAccent),
-                    ),
-                    alignment: Alignment.centerLeft,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Text(
-                      _videoPath == null
-                          ? 'Import a video to add it to the timeline'
-                          : _videoPath!.split(Platform.pathSeparator).last,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.white70),
+                  SizedBox(
+                    height: 132,
+                    child: ListView.separated(
+                      itemCount: _tracks.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 6),
+                      itemBuilder: (context, index) {
+                        final track = _tracks[index];
+                        final isVideo = track.label == 'Video';
+                        return Container(
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF292432),
+                            borderRadius: BorderRadius.circular(7),
+                            border: Border.all(
+                              color: isVideo
+                                  ? Colors.deepPurpleAccent
+                                  : Colors.white12,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const SizedBox(width: 10),
+                              Icon(track.icon, size: 17, color: Colors.white70),
+                              const SizedBox(width: 8),
+                              SizedBox(
+                                width: 66,
+                                child: Text(
+                                  track.label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                              const VerticalDivider(
+                                color: Colors.white12,
+                                width: 12,
+                                indent: 7,
+                                endIndent: 7,
+                              ),
+                              Expanded(
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Container(
+                                    height: 24,
+                                    margin: const EdgeInsets.symmetric(horizontal: 6),
+                                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                                    decoration: BoxDecoration(
+                                      color: isVideo
+                                          ? Colors.deepPurple.withValues(alpha: 0.35)
+                                          : Colors.white.withValues(alpha: 0.06),
+                                      borderRadius: BorderRadius.circular(5),
+                                    ),
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      isVideo
+                                          ? (_videoPath == null
+                                              ? 'Video clip'
+                                              : _videoPath!.split(Platform.pathSeparator).last)
+                                          : 'Empty ${track.label.toLowerCase()} stack',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Colors.white60,
+                                        fontSize: 10,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              if (!isVideo)
+                                IconButton(
+                                  tooltip: 'Remove stack',
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: () => setState(() => _tracks.removeAt(index)),
+                                  icon: const Icon(Icons.close, size: 16),
+                                )
+                              else
+                                const SizedBox(width: 42),
+                            ],
+                          ),
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -360,6 +469,13 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
       ),
     );
   }
+}
+
+class _TimelineTrack {
+  const _TimelineTrack({required this.label, required this.icon});
+
+  final String label;
+  final IconData icon;
 }
 
 class _PlaceholderToolIcon extends StatelessWidget {
