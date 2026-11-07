@@ -125,6 +125,27 @@ jobs:
               raise SystemExit("Could not set Android minSdk to 24.")
           gradle_file.write_text(content)
           print(f"Configured {gradle_file}: compileSdk 36, minSdk 24")
+
+          # Flutter plugins are separate Android subprojects. Override their
+          # compile SDK too, not just the main app module.
+          root_gradle = Path("android/build.gradle")
+          if not root_gradle.exists():
+              raise SystemExit("Could not find the generated root Android Gradle file.")
+          root_content = root_gradle.read_text()
+          override = """
+          subprojects {
+              afterEvaluate { project ->
+                  if (project.hasProperty('android')) {
+                      project.android {
+                          compileSdkVersion 36
+                      }
+                  }
+              }
+          }
+          """
+          if "compileSdkVersion 36" not in root_content:
+              root_gradle.write_text(root_content.rstrip() + "\\n\\n" + override)
+          print("Configured all Android subprojects to compile against SDK 36.")
           PY
 
       - name: Install dependencies
