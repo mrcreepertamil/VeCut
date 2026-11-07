@@ -142,24 +142,22 @@ jobs:
               # finishes, while the Android DSL is still mutable.
               override = """
           // VeCut compile SDK override
-          gradle.afterProject { project, state ->
-              val isAndroidModule =
-                  project.plugins.hasPlugin("com.android.application") ||
-                  project.plugins.hasPlugin("com.android.library")
-              if (isAndroidModule) {
-                  val androidExtension = project.extensions.findByName("android")
-                      ?: throw GradleException("Missing Android extension for ${project.path}")
-                  val setter = androidExtension.javaClass.methods.firstOrNull {
-                      (it.name == "setCompileSdkVersion" || it.name == "setCompileSdk") &&
-                      it.parameterCount == 1 &&
-                      (it.parameterTypes[0] == Int::class.javaPrimitiveType ||
-                       it.parameterTypes[0] == Int::class.javaObjectType)
-                  } ?: throw GradleException("Could not find compile SDK setter for ${project.path}")
-                  try {
-                      setter.invoke(androidExtension, 36)
-                      println("VeCut: set ${project.path} compileSdk to 36")
-                  } catch (error: Exception) {
-                      throw GradleException("Could not set compileSdk to 36 for ${project.path}", error)
+          subprojects {
+              afterEvaluate {
+                  val androidExtension = extensions.findByName("android")
+                  if (androidExtension != null) {
+                      val setter = androidExtension.javaClass.methods.firstOrNull {
+                          (it.name == "setCompileSdkVersion" || it.name == "setCompileSdk") &&
+                          it.parameterCount == 1 &&
+                          (it.parameterTypes[0] == Int::class.javaPrimitiveType ||
+                           it.parameterTypes[0] == Int::class.javaObjectType)
+                      } ?: throw GradleException("Could not find Android compile SDK setter for ${path}")
+                      try {
+                          setter.invoke(androidExtension, 36)
+                          println("VeCut: set ${path} compileSdk to 36")
+                      } catch (error: Exception) {
+                          throw GradleException("Could not set compileSdk to 36 for ${path}", error)
+                      }
                   }
               }
           }
