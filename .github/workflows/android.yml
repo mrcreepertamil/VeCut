@@ -89,7 +89,7 @@ jobs:
                                    '<string name="app_name">VeCut</string>', content)
               else:
                   content = content.replace("</resources>",
-                                            '    <string name="app_name">VeCut</string>\\n</resources>')
+                                            '    <string name="app_name">VeCut</string>\n</resources>')
               strings.write_text(content)
           else:
               strings.write_text('<resources><string name="app_name">VeCut</string></resources>')
@@ -193,7 +193,7 @@ jobs:
               marker = "plugins.withId('com.android.library')"
 
           if marker not in root_content:
-              root_gradle.write_text(root_content.rstrip() + "\\n\\n" + override)
+              root_gradle.write_text(root_content.rstrip() + "\n\n" + override)
           print(f"Configured Android subprojects to compile against SDK 36 using {root_gradle}.")
           PY
 
