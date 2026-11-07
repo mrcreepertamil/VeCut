@@ -1,23 +1,19 @@
-
 import 'package:flutter/material.dart';
+import '../models/ve_cut_project.dart';
 
 class EditorWorkspacePage extends StatelessWidget {
-  const EditorWorkspacePage({super.key});
+  const EditorWorkspacePage({super.key, required this.project});
+
+  final VeCutProject project;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Untitled Project'),
+        title: Text(project.name),
         actions: [
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.undo),
-          ),
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.redo),
-          ),
+          IconButton(onPressed: () {}, icon: const Icon(Icons.undo)),
+          IconButton(onPressed: () {}, icon: const Icon(Icons.redo)),
           IconButton(
             onPressed: () {},
             icon: const Icon(Icons.file_upload_outlined),
@@ -31,19 +27,24 @@ class EditorWorkspacePage extends StatelessWidget {
             child: Container(
               width: double.infinity,
               color: Colors.black,
-              child: const Center(
+              child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.movie_outlined,
                       size: 64,
                       color: Colors.white38,
                     ),
-                    SizedBox(height: 12),
-                    Text(
+                    const SizedBox(height: 12),
+                    const Text(
                       'Video Preview',
                       style: TextStyle(color: Colors.white70),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${project.resolution} • ${project.frameRate} FPS',
+                      style: const TextStyle(color: Colors.white38),
                     ),
                   ],
                 ),
@@ -88,9 +89,7 @@ class EditorWorkspacePage extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: const Color(0xFF292432),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: Colors.deepPurpleAccent,
-                      ),
+                      border: Border.all(color: Colors.deepPurpleAccent),
                     ),
                     child: const Center(
                       child: Text(
