@@ -13,16 +13,24 @@
 
 ## Current development status
 
-The current editor workspace supports importing multiple video files, previewing a selected video, basic trimming and single-clip MP4 export. It also supports audio preview, text overlays, and image/video overlays in the preview.
+The current editor workspace supports:
+- Importing multiple videos and images into a project Media Library.
+- Browsing imported assets and adding them to the timeline.
+- Previewing a selected video and displaying image/video/text overlays.
+- Adding clips to selectable timeline tracks and removing placed clips.
+- Basic trim controls and single-source MP4 export.
+- Audio import, preview, a timeline start offset and volume controls, plus basic playback synchronization with the preview.
+- Overlay position, scale, start-time and duration controls in the preview.
 
-The following are **not yet complete**:
-- A continuous, synchronized multi-track timeline.
-- Editing audio position, duration, and volume against the video.
-- Overlay timing, transform controls, and compositing into exported video.
+The following are **still in development**:
+- A true frame-accurate, continuously rendered multi-track timeline.
+- Keeping audio synchronized throughout long playback sessions and mixing multiple audio clips.
+- Rendering image/video/text overlays and all timeline tracks into the final exported video.
 - Exporting the complete edited timeline rather than one trimmed source clip.
-- Saving and reopening editable projects.
+- Saving and reopening editable project files.
+- Undo/redo, split, and the other advanced timeline toolbar actions.
 
-Supporting timeline, media-asset, and overlay data models plus a shared media picker service are being added as foundations. Their existence does not mean the full timeline or compositing engine is finished.
+The current media library and timeline controls are functional editing foundations, but the project is not yet a complete professional multi-track editor.
 
 ## Community plugins
 
