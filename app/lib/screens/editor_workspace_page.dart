@@ -56,7 +56,7 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
   int get _trackLimit => _isProUser ? _proTrackLimit : _freeTrackLimit;
 
   final List<_TimelineTrack> _tracks = [
-    const _TimelineTrack(label: 'Video', icon: Icons.movie_outlined),
+    _TimelineTrack(label: 'Video', icon: Icons.movie_outlined),
   ];
 
   void _addTrack(String label, IconData icon) {
@@ -72,7 +72,10 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
       );
       return;
     }
-    setState(() => _tracks.add(_TimelineTrack(label: label, icon: icon)));
+    setState(() {
+      _tracks.add(_TimelineTrack(label: label, icon: icon));
+      _selectedTrackIndex = _tracks.length - 1;
+    });
   }
 
   Duration get _duration => _controller?.value.duration ?? Duration.zero;
@@ -177,11 +180,13 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
       startMs: _timelineClips.isEmpty
         ? 0
         : _timelineClips.map((clip) => clip.startMs + (clip.durationMs ?? 5000)).reduce((a, b) => a > b ? a : b),
+      trackId: _tracks[_selectedTrackIndex.clamp(0, _tracks.length - 1)].id,
       sourceInMs: 0,
       sourceOutMs: asset.durationMs ?? (asset.type == MediaAssetType.image ? 5000 : null),
     );
     setState(() {
       _timelineClips.add(clip);
+      _tracks[_selectedTrackIndex.clamp(0, _tracks.length - 1)].clips.add(clip);
       if (asset.type == MediaAssetType.image) _overlayImagePath = asset.path;
       if (asset.type == MediaAssetType.video && _videoPath == null) _videoPath = asset.path;
       _status = '${asset.name} added to timeline.';
@@ -191,6 +196,9 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
   void _removeTimelineClip(TimelineClip clip) {
     setState(() {
       _timelineClips.removeWhere((item) => item.id == clip.id);
+      for (final track in _tracks) {
+        track.clips.removeWhere((item) => item.id == clip.id);
+      }
       _status = 'Clip removed from timeline.';
     });
   }
@@ -304,11 +312,21 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
     if (controller == null || !controller.value.isInitialized) return;
     if (controller.value.isPlaying) {
       await controller.pause();
+      await _audioController?.pause();
     } else {
       if (controller.value.position >= controller.value.duration) {
         await controller.seekTo(Duration.zero);
       }
       await controller.play();
+      final audio = _audioController;
+      if (audio != null && audio.value.isInitialized) {
+        final audioPosition = currentPosition - Duration(milliseconds: _audioStartMs);
+        if (audioPosition >= Duration.zero && audioPosition < audio.value.duration) {
+          await audio.seekTo(audioPosition);
+          await audio.setVolume(_audioVolume);
+          await audio.play();
+        }
+      }
     }
     if (mounted) setState(() {});
   }
@@ -538,6 +556,17 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                       ),
                       const Spacer(),
                       Text('${_tracks.length}/$_trackLimit tracks'),
+                      const SizedBox(width: 6),
+                      DropdownButton<int>(
+                        value: _selectedTrackIndex.clamp(0, _tracks.length - 1),
+                        underline: const SizedBox.shrink(),
+                        isDense: true,
+                        items: List.generate(_tracks.length, (index) => DropdownMenuItem(
+                          value: index,
+                          child: Text(_tracks[index].label, style: const TextStyle(fontSize: 11)),
+                        )),
+                        onChanged: (value) => setState(() => _selectedTrackIndex = value ?? 0),
+                      ),
                       const SizedBox(width: 8),
                       PopupMenuButton<String>(
                         tooltip: 'Add stack',
@@ -706,7 +735,12 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                                 IconButton(
                                   tooltip: 'Remove stack',
                                   visualDensity: VisualDensity.compact,
-                                  onPressed: () => setState(() => _tracks.removeAt(index)),
+                                  onPressed: () => setState(() {
+                                    _tracks.removeAt(index);
+                                    if (_selectedTrackIndex >= _tracks.length) {
+                                      _selectedTrackIndex = _tracks.length - 1;
+                                    }
+                                  }),
                                   icon: const Icon(Icons.close, size: 16),
                                 )
                               else
@@ -892,10 +926,13 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
 }
 
 class _TimelineTrack {
-  const _TimelineTrack({required this.label, required this.icon});
+  _TimelineTrack({required this.label, required this.icon})
+      : id = DateTime.now().microsecondsSinceEpoch.toString();
 
+  final String id;
   final String label;
   final IconData icon;
+  final List<TimelineClip> clips = [];
 }
 
 class _PlaceholderToolIcon extends StatelessWidget {
