@@ -22,6 +22,35 @@ jobs:
         working-directory: app
         run: flutter create --platforms=android .
 
+      - name: Set Android compile SDK to 36
+        working-directory: app
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          gradle_file = Path("android/app/build.gradle")
+          if not gradle_file.exists():
+              gradle_file = Path("android/app/build.gradle.kts")
+          if not gradle_file.exists():
+              raise SystemExit("Could not find the generated Android app Gradle file.")
+
+          content = gradle_file.read_text()
+          replacements = (
+              ("compileSdk = flutter.compileSdkVersion", "compileSdk = 36"),
+              ("compileSdkVersion flutter.compileSdkVersion", "compileSdkVersion 36"),
+          )
+          for old_value, new_value in replacements:
+              if old_value in content:
+                  gradle_file.write_text(content.replace(old_value, new_value))
+                  print(f"Updated {gradle_file} to compileSdk 36")
+                  break
+          else:
+              if "compileSdk = 36" in content or "compileSdkVersion 36" in content:
+                  print("Android compileSdk is already 36")
+              else:
+                  raise SystemExit("Could not identify the Flutter compileSdk setting.")
+          PY
+
       - name: Install dependencies
         working-directory: app
         run: flutter pub get
