@@ -1,0 +1,13 @@
+{
+  "id": "com.example.hello-ve-cut",
+  "name": "Hello VeCut",
+  "version": "1.0.0",
+  "description": "An example plugin that adds a greeting command.",
+  "author": "Example Developer",
+  "apiVersion": 1,
+  "entry": "main.js",
+  "permissions": [
+    "ui.notifications",
+    "editor.commands"
+  ]
+}
