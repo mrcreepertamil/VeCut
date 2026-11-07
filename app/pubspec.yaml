@@ -11,6 +11,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  ve_cut_media_android:
+    path: packages/ve_cut_media_android
 
 dev_dependencies:
   flutter_test:
