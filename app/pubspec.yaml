@@ -1,4 +1,3 @@
-
 name: vecut
 description: A cross-platform video editor for Android and Windows.
 publish_to: 'none'
@@ -11,8 +10,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  ve_cut_media_android:
-    path: packages/ve_cut_media_android
+  file_picker: ^8.1.7
+  video_player: ^2.9.5
+  path_provider: ^2.1.5
+  ffmpeg_kit_flutter_new: ^4.6.8
 
 dev_dependencies:
   flutter_test:
