@@ -102,7 +102,6 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
   Future<void> _importImages() async {
     final assets = await _mediaImporter.pickImages();
     if (assets.isEmpty || !mounted) return;
-    if (assets.isEmpty) return;
     setState(() {
       _mediaAssets.addAll(assets);
       _status = '${assets.length} image(s) added to Media Library.';
@@ -310,6 +309,7 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
   Future<void> _togglePlayback() async {
     final controller = _controller;
     if (controller == null || !controller.value.isInitialized) return;
+    final currentPosition = controller.value.position;
     if (controller.value.isPlaying) {
       await controller.pause();
       await _audioController?.pause();
@@ -413,7 +413,6 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
               if (v == 'audio') _importAudio();
               if (v == 'image') _importImages();
               if (v == 'text') _addTextOverlay();
-              if (v == 'image') _importImageOverlay();
               if (v == 'video') _importVideoOverlay();
             },
             itemBuilder: (ctx) => const [
@@ -558,7 +557,7 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                       Text('${_tracks.length}/$_trackLimit tracks'),
                       const SizedBox(width: 6),
                       DropdownButton<int>(
-                        value: _selectedTrackIndex.clamp(0, _tracks.length - 1),
+                        value: _selectedTrackIndex.clamp(0, _tracks.length - 1).toInt(),
                         underline: const SizedBox.shrink(),
                         isDense: true,
                         items: List.generate(_tracks.length, (index) => DropdownMenuItem(
