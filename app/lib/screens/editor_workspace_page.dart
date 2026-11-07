@@ -245,7 +245,51 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                       Text(_videoPath == null ? 'No clip' : '1 video clip'),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _PlaceholderToolIcon(
+                          icon: Icons.undo_rounded,
+                          label: 'Undo',
+                        ),
+                        _PlaceholderToolIcon(
+                          icon: Icons.redo_rounded,
+                          label: 'Redo',
+                        ),
+                        _PlaceholderToolIcon(
+                          icon: Icons.content_cut_rounded,
+                          label: 'Split',
+                        ),
+                        _PlaceholderToolIcon(
+                          icon: Icons.music_note_rounded,
+                          label: 'Audio',
+                        ),
+                        _PlaceholderToolIcon(
+                          icon: Icons.title_rounded,
+                          label: 'Text',
+                        ),
+                        _PlaceholderToolIcon(
+                          icon: Icons.auto_awesome_rounded,
+                          label: 'Effects',
+                        ),
+                        _PlaceholderToolIcon(
+                          icon: Icons.sticky_note_2_outlined,
+                          label: 'Stickers',
+                        ),
+                        _PlaceholderToolIcon(
+                          icon: Icons.layers_rounded,
+                          label: 'Layers',
+                        ),
+                        _PlaceholderToolIcon(
+                          icon: Icons.settings_outlined,
+                          label: 'Settings',
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   Container(
                     height: 48,
                     width: double.infinity,
@@ -313,6 +357,40 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PlaceholderToolIcon extends StatelessWidget {
+  const _PlaceholderToolIcon({
+    required this.icon,
+    required this.label,
+  });
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Tooltip(
+        message: label,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              onPressed: null,
+              icon: Icon(icon),
+              visualDensity: VisualDensity.compact,
+            ),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 10, color: Colors.white54),
+            ),
+          ],
+        ),
       ),
     );
   }
