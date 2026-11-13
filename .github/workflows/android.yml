@@ -138,25 +138,26 @@ jobs:
 
           root_content = root_gradle.read_text()
           if is_kotlin_dsl:
-              # Configure each Android module immediately after its build script
-              # finishes, while the Android DSL is still mutable.
+              # Run once after all Android subprojects have been evaluated.
+              # Registering afterEvaluate here can fail if a subproject is
+              # already evaluated when this root script is applied.
               override = """
           // VeCut compile SDK override
-          subprojects {
-              afterEvaluate {
-                  val androidExtension = extensions.findByName("android")
+          gradle.projectsEvaluated {
+              rootProject.subprojects.forEach { project ->
+                  val androidExtension = project.extensions.findByName("android")
                   if (androidExtension != null) {
                       val setter = androidExtension.javaClass.methods.firstOrNull {
                           (it.name == "setCompileSdkVersion" || it.name == "setCompileSdk") &&
                           it.parameterCount == 1 &&
                           (it.parameterTypes[0] == Int::class.javaPrimitiveType ||
                            it.parameterTypes[0] == Int::class.javaObjectType)
-                      } ?: throw GradleException("Could not find Android compile SDK setter for ${path}")
+                      } ?: throw GradleException("Could not find Android compile SDK setter for ${project.path}")
                       try {
                           setter.invoke(androidExtension, 36)
-                          println("VeCut: set ${path} compileSdk to 36")
+                          println("VeCut: set ${project.path} compileSdk to 36")
                       } catch (error: Exception) {
-                          throw GradleException("Could not set compileSdk to 36 for ${path}", error)
+                          throw GradleException("Could not set compileSdk to 36 for ${project.path}", error)
                       }
                   }
               }
