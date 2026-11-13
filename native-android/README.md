@@ -32,4 +32,4 @@ This prototype deliberately does not expose Java objects, filesystem access, net
 
 ## Migration status
 
-The Flutter project in `../app` is retained temporarily as a reference while native feature parity is developed. It has not been deleted. The native app is not yet a complete replacement for the existing editor: media decoding, playback, a visual multi-track timeline, portable project-file import/export, rendering, effects, audio mixing and export have not been ported. Keep both until those features are implemented and verified, then remove the legacy project in a dedicated cleanup change.
+The Flutter project in `../.oldproto` is retained temporarily as a reference while native feature parity is developed. It has not been deleted. The native app is not yet a complete replacement for the existing editor: media decoding, playback, a visual multi-track timeline, portable project-file import/export, rendering, effects, audio mixing and export have not been ported. Keep both until those features are implemented and verified, then remove the legacy project in a dedicated cleanup change.
