@@ -1,75 +1,36 @@
 # VeCut
 
-**VeCut is an in-development, cross-platform video editor built with Flutter.** Android is the first target; Windows is planned.
+**VeCut is an in-development video editor.** The project is beginning a migration from Flutter/Dart to a native Android application built with Java and C++, with JavaScript as the language for third-party community plugins.
 
-## Project goals
+## Technology direction
 
-- Create projects with configurable resolution and frame rate.
-- Import and organize video, audio, and image media.
-- Preview clips and build a multi-track timeline.
-- Add text and visual overlays.
-- Trim, split, and arrange clips.
-- Export finished videos.
+- **Java** — native Android application, UI, project management, media library, timeline controls, and the JNI boundary.
+- **C++17** — planned media engine for rendering, effects, transitions, audio processing, and export.
+- **JavaScript** — third-party developer plugins through a deliberately limited plugin API.
+- **Android** — first native target. A shared C++ engine may support a future Windows application.
 
-## Current development status
+## Native migration status
 
-The current editor workspace supports:
-- Importing multiple videos and images into a project Media Library.
-- Browsing imported assets and adding them to the timeline.
-- Previewing a selected video and displaying image/video/text overlays.
-- Adding clips to selectable timeline tracks and removing placed clips.
-- Basic trim controls and single-source MP4 export.
-- Audio import, preview, a timeline start offset and volume controls, plus basic playback synchronization with the preview.
-- Overlay position, scale, start-time and duration controls in the preview.
+The initial native foundation lives in [native-android](native-android/):
 
-The following are **still in development**:
-- A true frame-accurate, continuously rendered multi-track timeline.
-- Keeping audio synchronized throughout long playback sessions and mixing multiple audio clips.
-- Rendering image/video/text overlays and all timeline tracks into the final exported video.
-- Exporting the complete edited timeline rather than one trimmed source clip.
-- Saving and reopening editable project files.
-- Undo/redo, split, and the other advanced timeline toolbar actions.
+- Native Android Studio/Gradle project.
+- Java launcher screen and JNI bridge.
+- C++ shared-library target built with CMake.
+- Embedded Rhino JavaScript runtime prototype.
+- A bundled example plugin that registers an effect descriptor.
 
-The current media library and timeline controls are functional editing foundations, but the project is not yet a complete professional multi-track editor.
+**This is a foundation, not feature parity yet.** The C++ media engine is currently a loading stub. The JavaScript host currently demonstrates plugin logging and effect registration; public plugin installation, package management, full isolation, and a stable plugin API are not ready. The native app does not yet contain the previous editor's media import, timeline, preview, project persistence, or export functionality.
 
-## Community plugins
+## Existing editor reference
 
-VeCut is planned to support community plugins written in JavaScript. The plugin manifest, API draft, and example are in the [plugins folder](plugins/).
+The previous Flutter editor is retained in [app](app/) while its features are ported and verified in the native app. It currently provides the earlier UI and editing prototype, including media import, basic timeline controls, preview, audio controls, and limited single-source export. Keeping it temporarily avoids losing working reference code during the migration.
 
-**The plugin runtime and plugin manager are not implemented yet.** The example files describe a proposed format and cannot currently run inside VeCut.
+## Build the native Android foundation
 
-## Technology
+Open the [native-android](native-android/) folder in Android Studio with JDK 17, Android SDK 35, Android NDK, and CMake installed. Select the `app` run configuration and build/run on an Android device or emulator.
 
-- **Flutter / Dart** for the application interface.
-- **Android** as the initial target platform.
-- **Windows** as a planned desktop target.
-- A dedicated media-processing engine is planned for later development.
+See [native-android/README.md](native-android/README.md) for the current plugin API prototype and migration limitations.
 
-## Run locally
+## Original Flutter prototype
 
-Install the Flutter SDK, then run:
-
-```bash
-cd app
-flutter create --platforms=android,windows .
-flutter pub get
-flutter run
-```
-
-## Build
-
-Android APK:
-
-```bash
-cd app
-flutter build apk --release
-```
-
-Windows desktop build (on Windows with Visual Studio C++ desktop tools installed):
-
-```bash
-cd app
-flutter build windows --release
-```
-
-GitHub Actions workflows are included for Android and Windows builds.
+The legacy project remains under `app/` and can still be run with Flutter while native feature parity is developed.
