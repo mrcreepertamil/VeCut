@@ -44,9 +44,9 @@ The native foundation lives in [native-android](native-android/):
 
 The native app does not yet provide a complete editing workflow, project persistence, or final video export.
 
-## Existing editor reference
+## Archived Flutter prototype
 
-The previous Flutter editor is retained in [app](app/) while its features are ported and verified in the native app. It remains a reference for the earlier UI and editing prototype. Keeping it temporarily avoids losing existing work during the migration.
+The previous Flutter editor is retained in [.oldproto](.oldproto/) while its features are ported and verified in the native app. It remains a reference for the earlier UI and editing prototype. Keeping it temporarily avoids losing existing work during the migration.
 
 ## Build the native Android foundation
 
@@ -54,6 +54,6 @@ Open the [native-android](native-android/) folder in Android Studio with JDK 17,
 
 See [native-android/README.md](native-android/README.md) for details about the plugin API prototype, interface, and current limitations.
 
-## Original Flutter prototype
+## Original Flutter prototype (`.oldproto/`)
 
-The legacy project remains under `app/` and can still be used as a reference while native feature parity is developed.
+The legacy project remains under `.oldproto/` and can still be used as a reference while native feature parity is developed.
