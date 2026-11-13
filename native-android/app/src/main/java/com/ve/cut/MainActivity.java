@@ -15,8 +15,10 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.FrameLayout;
+import android.widget.EditText;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
+import android.text.InputType;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -39,6 +41,8 @@ public final class MainActivity extends Activity {
     private LinearLayout videoTrackContent;
     private LinearLayout audioTrackContent;
     private final ExecutorService mediaExecutor = Executors.newSingleThreadExecutor();
+    private int selectedClipId = -1;
+    private long selectedClipDurationMs = 0;
     private TextView playButton;
     private boolean playing;
     private NativeMediaEngine mediaEngine;
@@ -265,7 +269,7 @@ public final class MainActivity extends Activity {
         String dimensions = info.width > 0 && info.height > 0
                 ? info.width + "×" + info.height : (mimeType == null ? "Media" : mimeType);
         String title = name == null || name.isEmpty() ? "Media clip" : name;
-        TextView chip = label(title + "\\n" + duration, 10, TEXT, true);
+        TextView chip = label(title + "\n" + duration, 10, TEXT, true);
         chip.setGravity(Gravity.CENTER);
         chip.setPadding(dp(10), dp(3), dp(10), dp(3));
         chip.setBackground(round(audio ? 0xFF31545A : 0xFF514071, 8));
@@ -273,8 +277,14 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(124), dp(38));
         params.setMargins(0, 0, dp(6), 0);
         target.addView(chip, params);
-        chip.setOnClickListener(v -> selectedClip.setText(
-                "Selected #" + clipId + " · " + title + " · " + dimensions + " · " + duration));
+        chip.setOnClickListener(v -> {
+            selectedClipId = clipId;
+            selectedClipDurationMs = info.durationMs;
+            selectedClip.setText("Selected #" + clipId + " · " + title
+                    + " · " + dimensions + " · " + duration);
+        });
+        selectedClipId = clipId;
+        selectedClipDurationMs = info.durationMs;
         chip.setOnLongClickListener(v -> {
             new AlertDialog.Builder(this).setTitle("Remove clip?")
                     .setMessage("Remove " + title + " from this timeline?")
@@ -282,6 +292,10 @@ public final class MainActivity extends Activity {
                     .setPositiveButton("Remove", (dialog, which) -> {
                         if (mediaEngine.removeClip(clipId)) {
                             target.removeView(chip);
+                            if (selectedClipId == clipId) {
+                                selectedClipId = -1;
+                                selectedClipDurationMs = 0;
+                            }
                             selectedClip.setText(mediaEngine.getTimelineSummary());
                             toast("Clip removed from timeline.");
                         } else toast("Could not remove this clip.");
@@ -290,6 +304,44 @@ public final class MainActivity extends Activity {
         });
     }
 
+    private void showTrimDialog() {
+        if (selectedClipId < 0) { toast("Select a timeline clip first."); return; }
+        LinearLayout fields = new LinearLayout(this);
+        fields.setOrientation(LinearLayout.VERTICAL);
+        fields.setPadding(dp(20), dp(12), dp(20), 0);
+        EditText start = new EditText(this);
+        start.setSingleLine(true);
+        start.setInputType(InputType.TYPE_CLASS_NUMBER);
+        start.setHint("Start (milliseconds)");
+        start.setText("0");
+        EditText end = new EditText(this);
+        end.setSingleLine(true);
+        end.setInputType(InputType.TYPE_CLASS_NUMBER);
+        end.setHint("End (milliseconds)");
+        if (selectedClipDurationMs > 0) end.setText(String.valueOf(selectedClipDurationMs));
+        fields.addView(start);
+        fields.addView(end);
+        new AlertDialog.Builder(this).setTitle("Trim selected clip")
+                .setMessage("Enter the source range in milliseconds.")
+                .setView(fields).setNegativeButton("Cancel", null)
+                .setPositiveButton("Apply", (dialog, which) -> {
+                    try {
+                        long inMs = Long.parseLong(start.getText().toString().trim());
+                        long outMs = Long.parseLong(end.getText().toString().trim());
+                        if (selectedClipDurationMs > 0 && outMs > selectedClipDurationMs) {
+                            toast("End time exceeds the media duration."); return;
+                        }
+                        if (!mediaEngine.trimClip(selectedClipId, inMs, outMs)) {
+                            toast("Invalid trim range."); return;
+                        }
+                        selectedClip.setText("Clip #" + selectedClipId + " · Trim "
+                                + formatTime(inMs) + " – " + formatTime(outMs));
+                        toast("Trim range saved to the native timeline.");
+                    } catch (NumberFormatException error) {
+                        toast("Enter valid millisecond values.");
+                    }
+                }).show();
+    }
     private String formatTime(long milliseconds) {
         long seconds = Math.max(0, milliseconds / 1000);
         return String.format(Locale.US, "%02d:%02d", seconds / 60, seconds % 60);
@@ -324,6 +376,8 @@ public final class MainActivity extends Activity {
         item.setOnClickListener(v -> {
             if ("Media".equals(name)) {
                 openMediaPicker();
+            } else if ("Trim".equals(name)) {
+                showTrimDialog();
             } else {
                 toast(name + " tools are not implemented yet.");
             }
