@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Color;
+import android.graphics.Bitmap;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
@@ -17,6 +18,7 @@ import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.EditText;
 import android.widget.HorizontalScrollView;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.text.InputType;
 import android.widget.ScrollView;
@@ -37,6 +39,8 @@ public final class MainActivity extends Activity {
     private static final int ACCENT = Color.rgb(139, 92, 246);
 
     private TextView mediaHint;
+    private ImageView previewImage;
+    private View emptyPreview;
     private TextView selectedClip;
     private LinearLayout videoTrackContent;
     private LinearLayout audioTrackContent;
@@ -157,7 +161,13 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         hintParams.topMargin = dp(8);
         empty.addView(mediaHint, hintParams);
+        emptyPreview = empty;
         frame.addView(empty, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        previewImage = new ImageView(this);
+        previewImage.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        previewImage.setVisibility(View.GONE);
+        frame.addView(previewImage, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         TextView resolution = label("OPENGL ES " + glVersion + ".0", 9, 0xFF888B9B, true);
@@ -425,11 +435,13 @@ public final class MainActivity extends Activity {
             for (ProjectStore.Source source : sources) {
                 Uri uri = Uri.parse(source.uri);
                 MediaProbe.Info info = MediaProbe.inspect(getApplicationContext(), uri);
+                Bitmap frame = MediaProbe.extractPreview(getApplicationContext(), uri, source.mimeType);
                 int clipId = mediaEngine.addClip(source.uri, source.mimeType);
                 if (clipId < 0) continue;
                 runOnUiThread(() -> {
                     if (isFinishing() || isDestroyed()) return;
                     addClipToTrack(clipId, source.displayName, source.mimeType, info, source.uri);
+                    showPreviewFrame(frame);
                     mediaHint.setText("Project media restored");
                 });
             }
@@ -453,6 +465,7 @@ public final class MainActivity extends Activity {
         mediaHint.setText("Reading media information…");
         mediaExecutor.execute(() -> {
             MediaProbe.Info info = MediaProbe.inspect(getApplicationContext(), uri);
+            Bitmap frame = MediaProbe.extractPreview(getApplicationContext(), uri, mimeType);
             int clipId = mediaEngine.addClip(uri.toString(), mimeType);
             runOnUiThread(() -> {
                 if (isFinishing() || isDestroyed()) return;
@@ -465,6 +478,7 @@ public final class MainActivity extends Activity {
                 mediaHint.setText("Imported: " + displayName);
                 ProjectStore.add(getApplicationContext(), uri.toString(), mimeType, displayName);
                 addClipToTrack(clipId, displayName, mimeType, info, uri.toString());
+                showPreviewFrame(frame);
                 toast("Imported media · Clip #" + clipId);
             });
         });
@@ -474,6 +488,13 @@ public final class MainActivity extends Activity {
     protected void onDestroy() {
         mediaExecutor.shutdown();
         super.onDestroy();
+    }
+
+    private void showPreviewFrame(Bitmap bitmap) {
+        if (bitmap == null || previewImage == null) return;
+        previewImage.setImageBitmap(bitmap);
+        previewImage.setVisibility(View.VISIBLE);
+        if (emptyPreview != null) emptyPreview.setVisibility(View.GONE);
     }
 
     private boolean supportsEs3() {
