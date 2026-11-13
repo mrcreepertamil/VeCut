@@ -1,10 +1,15 @@
 # VeCut native Android foundation
 
-This is the new native Android application foundation:
+This is the native Android application foundation:
 
-- **Java** owns the Android application and JNI boundary.
+- **Java** owns the Android editor interface, Android integration and JNI boundary.
 - **C++17** is the planned media engine. The current native library is only a loading/bridge stub; timeline rendering, codecs, effects, mixing and export still need implementation.
+- **OpenGL ES** backs the initial preview surface. The current renderer only clears the preview to a dark background; video-frame upload, shaders, compositing and GPU effects are not implemented yet. The app requests ES 3.0 when available and falls back to ES 2.0.
 - **JavaScript** is the third-party plugin language. The initial Rhino-based host exposes only `veCut.log()` and `veCut.registerEffect()` and loads the bundled sample plugin. A real plugin manager, package installation, compatibility/version checks, and per-plugin lifecycle are still future work.
+
+## Current interface
+
+The native app now has an editor-style workspace with a preview panel, playback controls, video/audio track placeholders, tool strip, media document picker and engine status panel. The media picker can select a file, but selected media is not decoded or inserted into a functioning timeline yet. Trim, text, effects, audio, overlays, playback and export controls are visual placeholders until their respective features are implemented.
 
 ## Open and build
 
@@ -27,4 +32,4 @@ This prototype deliberately does not expose Java objects, filesystem access, net
 
 ## Migration status
 
-The Flutter project in `../app` is retained temporarily as a reference while native feature parity is developed. It has not been deleted. The native foundation is not yet a replacement for the existing editor: media import, timeline editing, preview, project persistence, and export have not been ported. Keep both until those features are implemented and verified, then remove the legacy project in a dedicated cleanup change.
+The Flutter project in `../app` is retained temporarily as a reference while native feature parity is developed. It has not been deleted. The native app is not yet a complete replacement for the existing editor: media decoding/import into the timeline, editing operations, playback, project persistence, rendering and export have not been ported. Keep both until those features are implemented and verified, then remove the legacy project in a dedicated cleanup change.
