@@ -9,7 +9,7 @@ This is the native Android application foundation:
 
 ## Current interface
 
-The native app now has an editor-style workspace with a preview panel, playback controls, video/audio tracks with imported clip cards, tool strip, media document picker and engine status panel. The media picker can select a document, inspect basic duration/dimensions with Android's `MediaMetadataRetriever`, and add its URI and MIME type to the native C++ timeline through JNI. Imported items appear as selectable clip cards on the video/image or audio track. Long-press a clip to remove it; select a clip and use Trim to save a source in/out range in milliseconds. These ranges are timeline metadata only: the preview still does not decode or play media, and edits are not yet saved into project files. Text, effects, overlays, audio mixing, playback and export remain unimplemented.
+The native app now has an editor-style workspace with a preview panel, playback controls, video/audio tracks with imported clip cards, tool strip, media document picker and engine status panel. The media picker can select a document, inspect basic duration/dimensions with Android's `MediaMetadataRetriever`, and add its URI and MIME type to the native C++ timeline through JNI. Imported items appear as selectable clip cards on the video/image or audio track. Long-press a clip to remove it; select a clip and use Trim to save a source in/out range in milliseconds. Imported source URIs, MIME types and display names are saved locally with Android `SharedPreferences` and restored into the native timeline when the app opens again. The trim range itself is not persisted yet. The preview still does not decode or play media; text, effects, overlays, audio mixing, playback and export remain unimplemented. Text, effects, overlays, audio mixing, playback and export remain unimplemented.
 
 ## Open and build
 
@@ -32,4 +32,4 @@ This prototype deliberately does not expose Java objects, filesystem access, net
 
 ## Migration status
 
-The Flutter project in `../app` is retained temporarily as a reference while native feature parity is developed. It has not been deleted. The native app is not yet a complete replacement for the existing editor: media decoding, playback, a visual multi-track timeline, project persistence, rendering, effects, audio mixing and export have not been ported. Keep both until those features are implemented and verified, then remove the legacy project in a dedicated cleanup change.
+The Flutter project in `../app` is retained temporarily as a reference while native feature parity is developed. It has not been deleted. The native app is not yet a complete replacement for the existing editor: media decoding, playback, a visual multi-track timeline, portable project-file import/export, rendering, effects, audio mixing and export have not been ported. Keep both until those features are implemented and verified, then remove the legacy project in a dedicated cleanup change.
