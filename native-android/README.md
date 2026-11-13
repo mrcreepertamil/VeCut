@@ -9,7 +9,7 @@ This is the native Android application foundation:
 
 ## Current interface
 
-The native app now has an editor-style workspace with a preview panel, playback controls, video/audio track placeholders, tool strip, media document picker and engine status panel. The media picker can select a document and add its URI and MIME type to the native C++ timeline through JNI. The timeline currently stores source references and trim metadata in memory only; it does not decode or play media, and it is not yet saved into project files. Trim, text, effects, audio, overlays, playback and export controls remain unimplemented.
+The native app now has an editor-style workspace with a preview panel, playback controls, video/audio tracks with imported clip cards, tool strip, media document picker and engine status panel. The media picker can select a document, inspect basic duration/dimensions with Android's `MediaMetadataRetriever`, and add its URI and MIME type to the native C++ timeline through JNI. Imported items appear as selectable clip cards on the video/image or audio track. Long-press a clip to remove it; select a clip and use Trim to save a source in/out range in milliseconds. These ranges are timeline metadata only: the preview still does not decode or play media, and edits are not yet saved into project files. Text, effects, overlays, audio mixing, playback and export remain unimplemented.
 
 ## Open and build
 
