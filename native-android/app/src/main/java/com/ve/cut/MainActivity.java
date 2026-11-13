@@ -37,6 +37,7 @@ public final class MainActivity extends Activity {
     private boolean playing;
     private NativeMediaEngine mediaEngine;
     private PluginHost pluginHost;
+    private String engineStatus = "Native engine not initialized";
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -46,6 +47,7 @@ public final class MainActivity extends Activity {
         getWindow().getDecorView().setSystemUiVisibility(0);
 
         mediaEngine = new NativeMediaEngine();
+        engineStatus = mediaEngine.initialize();
         pluginHost = new PluginHost(this);
         setContentView(buildEditor());
     }
@@ -282,7 +284,7 @@ public final class MainActivity extends Activity {
         panel.setPadding(dp(12), dp(10), dp(12), dp(10));
         panel.setBackground(round(PANEL, 12));
         panel.addView(label("ENGINE STATUS", 9, MUTED, true));
-        panel.addView(label("OpenGL preview surface initialized · Media pipeline in progress",
+        panel.addView(label(engineStatus + " · " + mediaEngine.getClipCount() + " timeline clips",
                 11, 0xFFB9BBC7, false));
         TextView plugin = label("Developer plugins: JavaScript runtime available", 10, 0xFF9D91C9, false);
         LinearLayout.LayoutParams pluginParams = new LinearLayout.LayoutParams(
