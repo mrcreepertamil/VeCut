@@ -317,9 +317,16 @@ public final class MainActivity extends Activity {
                     // Some document providers do not offer persistable grants.
                 }
                 String name = uri.getLastPathSegment();
-                mediaHint.setText("Selected media\n" + (name == null ? "Media file" : name));
-                selectedClip.setText("Media selected · Decoder and timeline import are next");
-                toast("Media selected. Timeline ingestion is not implemented yet.");
+                String mimeType = getContentResolver().getType(uri);
+                int clipId = mediaEngine.addClip(uri.toString(), mimeType);
+                mediaHint.setText("Added to timeline\n" + (name == null ? "Media file" : name));
+                if (clipId >= 0) {
+                    selectedClip.setText(mediaEngine.getTimelineSummary());
+                    toast("Added media to native timeline · Clip #" + clipId);
+                } else {
+                    selectedClip.setText("Could not add this media source");
+                    toast("The native timeline could not add this file.");
+                }
             }
         }
     }
