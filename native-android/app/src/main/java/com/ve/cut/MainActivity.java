@@ -1,6 +1,7 @@
 package com.ve.cut;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -21,6 +22,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public final class MainActivity extends Activity {
     private static final int REQUEST_MEDIA = 41;
@@ -33,6 +36,9 @@ public final class MainActivity extends Activity {
 
     private TextView mediaHint;
     private TextView selectedClip;
+    private LinearLayout videoTrackContent;
+    private LinearLayout audioTrackContent;
+    private final ExecutorService mediaExecutor = Executors.newSingleThreadExecutor();
     private TextView playButton;
     private boolean playing;
     private NativeMediaEngine mediaEngine;
@@ -211,10 +217,14 @@ public final class MainActivity extends Activity {
         rulerScroll.addView(ruler);
         panel.addView(rulerScroll);
 
-        panel.addView(track("V1", "＋  Add video or image", 0xFF3C315B), marginParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 48, 0, 7));
-        panel.addView(track("A1", "＋  Add audio", 0xFF29464A), new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(48)));
+        videoTrackContent = new LinearLayout(this);
+        videoTrackContent.setGravity(Gravity.CENTER_VERTICAL);
+        panel.addView(track("V1", "＋  Import video or image", 0xFF3C315B, videoTrackContent),
+                marginParams(ViewGroup.LayoutParams.MATCH_PARENT, 48, 0, 7));
+        audioTrackContent = new LinearLayout(this);
+        audioTrackContent.setGravity(Gravity.CENTER_VERTICAL);
+        panel.addView(track("A1", "＋  Import audio", 0xFF29464A, audioTrackContent),
+                new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)));
         selectedClip = label("No clips yet · Import media to begin", 10, MUTED, false);
         LinearLayout.LayoutParams note = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(22));
@@ -223,20 +233,66 @@ public final class MainActivity extends Activity {
         return panel;
     }
 
-    private View track(String trackName, String placeholder, int tint) {
+    private View track(String trackName, String placeholder, int tint, LinearLayout clips) {
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
         TextView name = label(trackName, 10, MUTED, true);
         row.addView(name, new LinearLayout.LayoutParams(dp(28), dp(42)));
-        TextView clip = label(placeholder, 11, 0xFFDCD8E8, true);
-        clip.setGravity(Gravity.CENTER_VERTICAL);
-        clip.setPadding(dp(10), 0, dp(10), 0);
-        clip.setBackground(round(tint, 8));
-        clip.setOnClickListener(v -> {
-            selectedClip.setText(trackName + " track selected");
-        });
-        row.addView(clip, new LinearLayout.LayoutParams(0, dp(42), 1f));
+        HorizontalScrollView scroll = new HorizontalScrollView(this);
+        scroll.setHorizontalScrollBarEnabled(false);
+        if (clips.getChildCount() == 0) {
+            TextView empty = label(placeholder, 11, 0xFFDCD8E8, true);
+            empty.setGravity(Gravity.CENTER_VERTICAL);
+            empty.setPadding(dp(10), 0, dp(10), 0);
+            empty.setBackground(round(tint, 8));
+            empty.setOnClickListener(v -> openMediaPicker());
+            clips.addView(empty, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, dp(38)));
+        }
+        scroll.addView(clips);
+        row.addView(scroll, new LinearLayout.LayoutParams(0, dp(42), 1f));
         return row;
+    }
+
+    private void addClipToTrack(int clipId, String name, String mimeType, MediaProbe.Info info) {
+        boolean audio = mimeType != null && mimeType.startsWith("audio/");
+        LinearLayout target = audio ? audioTrackContent : videoTrackContent;
+        if (target == null) return;
+        if (target.getChildCount() == 1 && target.getChildAt(0).getTag() == null) {
+            target.removeAllViews();
+        }
+        String duration = info.durationMs > 0 ? formatTime(info.durationMs) : "Unknown length";
+        String dimensions = info.width > 0 && info.height > 0
+                ? info.width + "×" + info.height : (mimeType == null ? "Media" : mimeType);
+        String title = name == null || name.isEmpty() ? "Media clip" : name;
+        TextView chip = label(title + "\\n" + duration, 10, TEXT, true);
+        chip.setGravity(Gravity.CENTER);
+        chip.setPadding(dp(10), dp(3), dp(10), dp(3));
+        chip.setBackground(round(audio ? 0xFF31545A : 0xFF514071, 8));
+        chip.setTag(clipId);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(124), dp(38));
+        params.setMargins(0, 0, dp(6), 0);
+        target.addView(chip, params);
+        chip.setOnClickListener(v -> selectedClip.setText(
+                "Selected #" + clipId + " · " + title + " · " + dimensions + " · " + duration));
+        chip.setOnLongClickListener(v -> {
+            new AlertDialog.Builder(this).setTitle("Remove clip?")
+                    .setMessage("Remove " + title + " from this timeline?")
+                    .setNegativeButton("Cancel", null)
+                    .setPositiveButton("Remove", (dialog, which) -> {
+                        if (mediaEngine.removeClip(clipId)) {
+                            target.removeView(chip);
+                            selectedClip.setText(mediaEngine.getTimelineSummary());
+                            toast("Clip removed from timeline.");
+                        } else toast("Could not remove this clip.");
+                    }).show();
+            return true;
+        });
+    }
+
+    private String formatTime(long milliseconds) {
+        long seconds = Math.max(0, milliseconds / 1000);
+        return String.format(Locale.US, "%02d:%02d", seconds / 60, seconds % 60);
     }
 
     private View buildToolStrip() {
@@ -307,28 +363,40 @@ public final class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_MEDIA && resultCode == RESULT_OK && data != null) {
-            Uri uri = data.getData();
-            if (uri != null) {
-                try {
-                    getContentResolver().takePersistableUriPermission(uri,
-                            Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                } catch (SecurityException ignored) {
-                    // Some document providers do not offer persistable grants.
-                }
-                String name = uri.getLastPathSegment();
-                String mimeType = getContentResolver().getType(uri);
-                int clipId = mediaEngine.addClip(uri.toString(), mimeType);
-                mediaHint.setText("Added to timeline\n" + (name == null ? "Media file" : name));
-                if (clipId >= 0) {
-                    selectedClip.setText(mediaEngine.getTimelineSummary());
-                    toast("Added media to native timeline · Clip #" + clipId);
-                } else {
-                    selectedClip.setText("Could not add this media source");
-                    toast("The native timeline could not add this file.");
-                }
-            }
+        if (requestCode != REQUEST_MEDIA || resultCode != RESULT_OK || data == null) return;
+        Uri uri = data.getData();
+        if (uri == null) return;
+        try {
+            getContentResolver().takePersistableUriPermission(uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        } catch (SecurityException ignored) {
+            // Some document providers do not offer persistable grants.
         }
+        final String mimeType = getContentResolver().getType(uri);
+        final String name = uri.getLastPathSegment();
+        mediaHint.setText("Reading media information…");
+        mediaExecutor.execute(() -> {
+            MediaProbe.Info info = MediaProbe.inspect(getApplicationContext(), uri);
+            int clipId = mediaEngine.addClip(uri.toString(), mimeType);
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (clipId < 0) {
+                    mediaHint.setText("Could not add this media source");
+                    toast("The native timeline could not add this file.");
+                    return;
+                }
+                String displayName = name == null ? "Media file" : name;
+                mediaHint.setText("Imported: " + displayName);
+                addClipToTrack(clipId, displayName, mimeType, info);
+                toast("Imported media · Clip #" + clipId);
+            });
+        });
+    }
+
+    @Override
+    protected void onDestroy() {
+        mediaExecutor.shutdown();
+        super.onDestroy();
     }
 
     private boolean supportsEs3() {
