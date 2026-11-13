@@ -126,68 +126,7 @@ jobs:
           gradle_file.write_text(content)
           print(f"Configured {gradle_file}: compileSdk 36, minSdk 24")
 
-          # Flutter plugins are separate Android subprojects. Override their
-          # compile SDK too, not just the main app module.
-          root_gradle = Path("android/build.gradle")
-          is_kotlin_dsl = False
-          if not root_gradle.exists():
-              root_gradle = Path("android/build.gradle.kts")
-              is_kotlin_dsl = True
-          if not root_gradle.exists():
-              raise SystemExit("Could not find the generated root Android Gradle file (.gradle or .gradle.kts).")
-
-          root_content = root_gradle.read_text()
-          if is_kotlin_dsl:
-              # Run once after all Android subprojects have been evaluated.
-              # Registering afterEvaluate here can fail if a subproject is
-              # already evaluated when this root script is applied.
-              override = """
-          // VeCut compile SDK override
-          gradle.projectsEvaluated {
-              rootProject.subprojects.forEach { project ->
-                  val androidExtension = project.extensions.findByName("android")
-                  if (androidExtension != null) {
-                      val setter = androidExtension.javaClass.methods.firstOrNull {
-                          (it.name == "setCompileSdkVersion" || it.name == "setCompileSdk") &&
-                          it.parameterCount == 1 &&
-                          (it.parameterTypes[0] == Int::class.javaPrimitiveType ||
-                           it.parameterTypes[0] == Int::class.javaObjectType)
-                      } ?: throw GradleException("Could not find Android compile SDK setter for ${project.path}")
-                      try {
-                          setter.invoke(androidExtension, 36)
-                          println("VeCut: set ${project.path} compileSdk to 36")
-                      } catch (error: Exception) {
-                          throw GradleException("Could not set compileSdk to 36 for ${project.path}", error)
-                      }
-                  }
-              }
-          }
-          """
-          else:
-              override = """
-          // VeCut compile SDK override
-          gradle.projectsEvaluated {
-              rootProject.subprojects.each { project ->
-                  def androidExtension = project.extensions.findByName('android')
-                  if (androidExtension != null) {
-                      def setter = androidExtension.class.methods.find {
-                          (it.name == 'setCompileSdkVersion' || it.name == 'setCompileSdk') &&
-                          it.parameterCount == 1 &&
-                          (it.parameterTypes[0] == Integer.TYPE || it.parameterTypes[0] == Integer)
-                      }
-                      if (setter == null) {
-                          throw new GradleException("Could not find an Android compile SDK setter for ${project.name}")
-                      }
-                      setter.invoke(androidExtension, 36)
-                  }
-              }
-          }
-          """
-          marker = "// VeCut compile SDK override"
-
-          if marker not in root_content:
-              root_gradle.write_text(root_content.rstrip() + "\n\n" + override)
-          print(f"Configured Android subprojects to compile against SDK 36 using {root_gradle}.")
+          print("Configured Android application: compileSdk 36, minSdk 24.")
           PY
 
       - name: Install dependencies
