@@ -60,6 +60,7 @@ public final class MainActivity extends Activity {
         engineStatus = mediaEngine.initialize();
         pluginHost = new PluginHost(this);
         setContentView(buildEditor());
+        restoreProjectSources();
     }
 
     private View buildEditor() {
@@ -258,7 +259,7 @@ public final class MainActivity extends Activity {
         return row;
     }
 
-    private void addClipToTrack(int clipId, String name, String mimeType, MediaProbe.Info info) {
+    private void addClipToTrack(int clipId, String name, String mimeType, MediaProbe.Info info, String sourceUri) {
         boolean audio = mimeType != null && mimeType.startsWith("audio/");
         LinearLayout target = audio ? audioTrackContent : videoTrackContent;
         if (target == null) return;
@@ -292,6 +293,7 @@ public final class MainActivity extends Activity {
                     .setPositiveButton("Remove", (dialog, which) -> {
                         if (mediaEngine.removeClip(clipId)) {
                             target.removeView(chip);
+                            ProjectStore.remove(getApplicationContext(), sourceUri);
                             if (selectedClipId == clipId) {
                                 selectedClipId = -1;
                                 selectedClipDurationMs = 0;
@@ -414,6 +416,26 @@ public final class MainActivity extends Activity {
         startActivityForResult(intent, REQUEST_MEDIA);
     }
 
+    private void restoreProjectSources() {
+        java.util.List<ProjectStore.Source> sources =
+                ProjectStore.load(getApplicationContext());
+        if (sources.isEmpty()) return;
+        mediaHint.setText("Restoring project media…");
+        mediaExecutor.execute(() -> {
+            for (ProjectStore.Source source : sources) {
+                Uri uri = Uri.parse(source.uri);
+                MediaProbe.Info info = MediaProbe.inspect(getApplicationContext(), uri);
+                int clipId = mediaEngine.addClip(source.uri, source.mimeType);
+                if (clipId < 0) continue;
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    addClipToTrack(clipId, source.displayName, source.mimeType, info, source.uri);
+                    mediaHint.setText("Project media restored");
+                });
+            }
+        });
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -441,7 +463,8 @@ public final class MainActivity extends Activity {
                 }
                 String displayName = name == null ? "Media file" : name;
                 mediaHint.setText("Imported: " + displayName);
-                addClipToTrack(clipId, displayName, mimeType, info);
+                ProjectStore.add(getApplicationContext(), uri.toString(), mimeType, displayName);
+                addClipToTrack(clipId, displayName, mimeType, info, uri.toString());
                 toast("Imported media · Clip #" + clipId);
             });
         });
