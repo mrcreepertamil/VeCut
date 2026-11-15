@@ -17,6 +17,9 @@ struct MediaAsset {
     std::string display_name;
     MediaKind kind = MediaKind::Video;
     std::int64_t duration_ms = 0;
+    std::uint64_t file_size_bytes = 0;
+    int width = 0;
+    int height = 0;
 };
 
 struct Transition {
@@ -54,6 +57,8 @@ public:
     const std::vector<Track>& tracks() const noexcept;
 
     bool add_media(MediaAsset asset);
+    bool update_media_info(const std::string& media_id, std::int64_t duration_ms,
+                           int width, int height);
     bool add_track(Track track);
     bool add_clip(const std::string& track_id, Clip clip);
     bool remove_clip(const std::string& track_id, const std::string& clip_id);
