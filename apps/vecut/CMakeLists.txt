@@ -6,6 +6,8 @@ qt_add_executable(VeCut
     main.cpp
     main_window.cpp
     main_window.h
+    media_probe.cpp
+    media_probe.h
 )
 
 target_link_libraries(VeCut PRIVATE Qt6::Widgets Qt6::Multimedia vecut_core)
