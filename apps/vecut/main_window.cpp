@@ -1175,6 +1175,7 @@ void MainWindow::open_project() {
         return;
     }
 
+    stop_timeline_audio();
     preview_player_->stop();
     preview_player_->setSource(QUrl());
     project_ = std::move(loaded);
