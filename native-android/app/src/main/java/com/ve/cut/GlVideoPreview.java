@@ -2,6 +2,8 @@ package com.ve.cut;
 
 import android.content.Context;
 import android.graphics.SurfaceTexture;
+import android.graphics.Rect;
+import android.animation.ValueAnimator;
 import android.opengl.GLES11Ext;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
@@ -33,6 +35,8 @@ public final class GlVideoPreview {
     private volatile boolean fadeInEnabled;
     private volatile boolean fadeOutEnabled;
     private volatile int fadeDurationMs = 500;
+    private volatile int transitionType;
+    private volatile int transitionDurationMs = 500;
     private volatile boolean transitionPending;
     private volatile long currentPositionMs;
 
@@ -43,6 +47,11 @@ public final class GlVideoPreview {
     }
 
     /** Configure preview-only fades at the beginning and end of each decoded clip. */
+    public void setTransitionSettings(int type, int durationMs) {
+        transitionType = Math.max(0, Math.min(6, type));
+        transitionDurationMs = Math.max(100, Math.min(3000, durationMs));
+    }
+
     public void setFadeSettings(boolean fadeIn, boolean fadeOut, int durationMs) {
         fadeInEnabled = fadeIn;
         fadeOutEnabled = fadeOut;
@@ -166,7 +175,9 @@ public final class GlVideoPreview {
         player.play(uri, decoderSurface, new CodecVideoPlayer.Listener() {
             @Override public void onPrepared() {
                 main.post(() -> {
-                    if (fadeInEnabled) {
+                    if (transitionPending && transitionType > 0) {
+                        playTransitionIn();
+                    } else if (fadeInEnabled) {
                         view.animate().alpha(1f).setDuration(fadeDurationMs).start();
                     } else {
                         view.setAlpha(1f);
@@ -185,7 +196,9 @@ public final class GlVideoPreview {
                             playbackEndedCallback.run();
                         }
                     };
-                    if (fadeOutEnabled) {
+                    if (playlistIndex + 1 < playlist.size() && transitionType > 0) {
+                        playTransitionOut(finish);
+                    } else if (fadeOutEnabled) {
                         view.animate().alpha(0f).setDuration(fadeDurationMs)
                                 .withEndAction(finish).start();
                     } else {
@@ -203,6 +216,88 @@ public final class GlVideoPreview {
                 });
             }
         }, seekPositionMs);
+    }
+
+    private void playTransitionOut(Runnable finish) {
+        transitionPending = true;
+        final int width = Math.max(1, view.getWidth());
+        final int height = Math.max(1, view.getHeight());
+        switch (transitionType) {
+            case 1: // Fade
+            case 2: // Dissolve-style alpha blend
+                view.animate().alpha(0f).setDuration(transitionDurationMs)
+                        .withEndAction(finish).start();
+                break;
+            case 3:
+            case 4: {
+                final boolean leftToRight = transitionType == 3;
+                ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
+                animator.setDuration(transitionDurationMs);
+                animator.addUpdateListener(value -> {
+                    float t = (float) value.getAnimatedValue();
+                    int reveal = Math.max(0, Math.min(width, (int) (width * (1f - t))));
+                    int left = leftToRight ? 0 : width - reveal;
+                    view.setClipBounds(new Rect(left, 0, left + reveal, height));
+                });
+                animator.addListener(new android.animation.AnimatorListenerAdapter() {
+                    @Override public void onAnimationEnd(android.animation.Animator animation) {
+                        view.setClipBounds(null);
+                        finish.run();
+                    }
+                });
+                animator.start();
+                break;
+            }
+            case 5:
+            case 6: {
+                float direction = transitionType == 5 ? -1f : 1f;
+                view.animate().translationX(direction * width).setDuration(transitionDurationMs)
+                        .withEndAction(finish).start();
+                break;
+            }
+            default:
+                finish.run();
+        }
+    }
+
+    private void playTransitionIn() {
+        final int width = Math.max(1, view.getWidth());
+        final int height = Math.max(1, view.getHeight());
+        switch (transitionType) {
+            case 1:
+            case 2:
+                view.setAlpha(0f);
+                view.animate().alpha(1f).setDuration(transitionDurationMs).start();
+                break;
+            case 3:
+            case 4: {
+                final boolean leftToRight = transitionType == 3;
+                view.setClipBounds(new Rect(leftToRight ? 0 : width, 0,
+                        leftToRight ? 0 : width, height));
+                ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
+                animator.setDuration(transitionDurationMs);
+                animator.addUpdateListener(value -> {
+                    float t = (float) value.getAnimatedValue();
+                    int reveal = Math.max(0, Math.min(width, (int) (width * t)));
+                    int left = leftToRight ? 0 : width - reveal;
+                    view.setClipBounds(new Rect(left, 0, left + reveal, height));
+                });
+                animator.addListener(new android.animation.AnimatorListenerAdapter() {
+                    @Override public void onAnimationEnd(android.animation.Animator animation) {
+                        view.setClipBounds(null);
+                    }
+                });
+                animator.start();
+                break;
+            }
+            case 5:
+            case 6:
+                view.setTranslationX((transitionType == 5 ? 1f : -1f) * width);
+                view.animate().translationX(0f).setDuration(transitionDurationMs).start();
+                break;
+            default:
+                view.setAlpha(1f);
+        }
     }
 
     private final class PreviewRenderer implements GLSurfaceView.Renderer {
