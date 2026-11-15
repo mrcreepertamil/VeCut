@@ -9,7 +9,7 @@ VeCut's editor UI and editing engine are implemented in C++17. Flutter and Dart 
 - **C++17** — application UI, project model, timeline, editing operations, effects, transitions, audio graph and render pipeline.
 - **Qt 6 Widgets** — the initial all-C++ cross-platform UI framework. The same UI target is intended to be configured for Windows, Android, Linux, macOS and iOS using the relevant Qt kits/toolchains.
 - **CMake** — shared build configuration and reusable engine target.
-- **Platform media backends** — selected behind C++ interfaces as the engine grows. The existing Android MediaCodec/OpenGL ES preview is transitional and is not yet the cross-platform renderer.
+- **Qt platform integration** — Qt 6 supplies the iOS application integration and Multimedia backend, keeping VeCut's application/editor source in C++ without a separate Swift or Objective-C editor. Platform-specific media acceleration can be added behind narrow C++ interfaces where Qt's abstractions are insufficient. The existing Android MediaCodec/OpenGL ES preview remains transitional.
 - **JavaScript plugins** — optional future third-party plugin scripting only; not used to implement the editor or its UI.
 
 ## Responsive application workspace
@@ -20,7 +20,7 @@ The Qt UI switches layout based on available window width:
 - **Desktop landscape (720 px and wider):** media bin beside the larger preview, with the timeline spanning the bottom.
 - The same C++ widgets and project state are used in both layouts; this is a responsive rearrangement, not separate Android/iOS and PC editor implementations.
 
-The mobile layout is designed for portrait use, but Android/iOS packaging, touch-device testing, and platform-specific file-picker integration still need to be built and verified with the appropriate Qt kits.
+The mobile layout is designed for portrait use. The shared application target now declares an iOS app bundle and uses only Qt Widgets and Qt Multimedia; iOS packaging, file-picker behavior, signing, and touch-device testing still require verification with an Apple build environment and the matching Qt iOS kit.
 
 ## C++ application and engine
 
@@ -46,6 +46,8 @@ cmake -S . -B build
 cmake --build build --config Release
 ```
 
+To build the iOS application, use a macOS host with Xcode and the matching Qt iOS kit installed. Configure with that kit's `qt-cmake` (or Qt-provided CMake toolchain), then build the generated Xcode project. The iOS target uses the same C++17 Qt Widgets application; signing, provisioning, deployment and on-device validation are separate release steps. This repository does not yet have a verified iOS build workflow.
+
 To configure and run only the platform-independent engine tests without Qt:
 
 ```sh
@@ -54,7 +56,7 @@ cmake --build build-engine
 ctest --test-dir build-engine --output-on-failure
 ```
 
-Use the Qt kit and CMake toolchain appropriate to the target platform. Android and iOS builds require their respective Qt platform kits, SDKs and signing/deployment setup; they are not produced by a desktop build.
+Use the Qt kit and CMake toolchain appropriate to the target platform. iOS builds require macOS, Xcode, the Qt iOS kit and Apple signing/deployment setup; Android builds require the Android Qt kit, SDK and NDK. They are not produced by a desktop build.
 
 ## Android transition project
 
