@@ -28,6 +28,7 @@
 #include <QWidget>
 
 #include <algorithm>
+#include <cmath>
 #include <QStringList>
 #include <utility>
 #include <functional>
