@@ -11,3 +11,7 @@ if(MSVC)
 else()
     target_compile_options(vecut_core PRIVATE -Wall -Wextra -Wpedantic)
 endif()
+
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
