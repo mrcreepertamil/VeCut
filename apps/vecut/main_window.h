@@ -11,6 +11,7 @@ class QSplitter;
 class QFrame;
 class QPushButton;
 class QMediaPlayer;
+class QString;
 
 class MainWindow final : public QMainWindow {
     Q_OBJECT
