@@ -36,6 +36,11 @@
 #include <QIcon>
 #include <QUrl>
 #include <QPushButton>
+#include <QDialog>
+#include <QFormLayout>
+#include <QSpinBox>
+#include <QComboBox>
+#include <QDialogButtonBox>
 #include <QResizeEvent>
 #include <QSplitter>
 #include <QVBoxLayout>
@@ -141,6 +146,7 @@ public:
     std::function<void(const QString&, const QString&, std::int64_t)> on_media_dropped;
     std::function<void(const QString&, const QString&, std::int64_t,
                        std::int64_t, std::int64_t)> on_clip_edited;
+    std::function<void(const QString&, const QString&)> on_clip_selected;
 
     QSize sizeHint() const override {
         std::int64_t duration = project_ ? project_->duration_ms() : 0;
@@ -283,10 +289,13 @@ protected:
         if (!hit) {
             selected_clip_id_.clear();
             drag_mode_ = DragMode::None;
+            if (on_clip_selected) on_clip_selected({}, {});
             update();
             return;
         }
         selected_clip_id_ = QString::fromStdString(hit->id);
+        if (on_clip_selected)
+            on_clip_selected(QString::fromStdString(track.id), selected_clip_id_);
         drag_track_id_ = QString::fromStdString(track.id);
         drag_clip_id_ = selected_clip_id_;
         drag_origin_x_ = point.x();
@@ -522,10 +531,16 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     timeline_toolbar->setSpacing(6);
     timeline_toolbar->addWidget(make_section_title("TIMELINE", timeline_panel_));
     timeline_toolbar->addStretch();
+    split_button_ = new QPushButton("Split", timeline_panel_);
+    trim_button_ = new QPushButton("Trim", timeline_panel_);
+    transition_button_ = new QPushButton("Transition", timeline_panel_);
     add_video_button_ = new QPushButton("+ Video track", timeline_panel_);
     add_audio_button_ = new QPushButton("+ Audio track", timeline_panel_);
     add_video_button_->setMinimumHeight(40);
     add_audio_button_->setMinimumHeight(40);
+    timeline_toolbar->addWidget(split_button_);
+    timeline_toolbar->addWidget(trim_button_);
+    timeline_toolbar->addWidget(transition_button_);
     timeline_toolbar->addWidget(add_video_button_);
     timeline_toolbar->addWidget(add_audio_button_);
     timeline_layout->addLayout(timeline_toolbar);
@@ -540,6 +555,17 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     timeline_widget_->on_media_dropped =
         [this](const QString& media_id, const QString& track_id, std::int64_t timeline_ms) {
             add_media_to_track(media_id, track_id, timeline_ms);
+        };
+    timeline_widget_->on_clip_selected =
+        [this](const QString& track_id, const QString& clip_id) {
+            selected_track_id_ = track_id;
+            selected_clip_id_ = clip_id;
+            if (clip_id.isEmpty()) {
+                status_label_->setText("No timeline clip selected.");
+                return;
+            }
+            status_label_->setText(QString("Selected clip %1 on %2.")
+                .arg(clip_id, track_id));
         };
     timeline_widget_->on_clip_edited =
         [this](const QString& track_id, const QString& clip_id, std::int64_t start_ms,
@@ -572,6 +598,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
             [this] { add_track(vecut::TrackKind::Video); });
     connect(add_audio_button_, &QPushButton::clicked, this,
             [this] { add_track(vecut::TrackKind::Audio); });
+    connect(split_button_, &QPushButton::clicked, this,
+            [this] { split_selected_clip(); });
+    connect(trim_button_, &QPushButton::clicked, this,
+            [this] { trim_selected_clip(); });
+    connect(transition_button_, &QPushButton::clicked, this,
+            [this] { edit_selected_transition(); });
 
     setStyleSheet(
         "QMainWindow,#root{background:#0f1015;}"
@@ -1147,6 +1179,176 @@ void MainWindow::open_project() {
     update_track_list();
     if (media_list_->count() > 0) media_list_->setCurrentRow(0);
     status_label_->setText(QString("Opened project: %1").arg(path));
+}
+
+
+void MainWindow::split_selected_clip() {
+    if (selected_track_id_.isEmpty() || selected_clip_id_.isEmpty()) {
+        status_label_->setText("Select a timeline clip before splitting.");
+        return;
+    }
+    const auto track = std::find_if(project_.tracks().begin(), project_.tracks().end(),
+        [&](const vecut::Track& item) {
+            return QString::fromStdString(item.id) == selected_track_id_;
+        });
+    if (track == project_.tracks().end()) return;
+    const auto clip = std::find_if(track->clips.begin(), track->clips.end(),
+        [&](const vecut::Clip& item) {
+            return QString::fromStdString(item.id) == selected_clip_id_;
+        });
+    if (clip == track->clips.end() || clip->source_out_ms - clip->source_in_ms < 2) {
+        status_label_->setText("This clip is too short to split.");
+        return;
+    }
+
+    const auto default_split = clip->source_in_ms +
+        (clip->source_out_ms - clip->source_in_ms) / 2;
+    QDialog dialog(this);
+    dialog.setWindowTitle("Split clip");
+    auto* layout = new QFormLayout(&dialog);
+    auto* position = new QSpinBox(&dialog);
+    position->setRange(static_cast<int>(std::min<std::int64_t>(
+                           clip->source_in_ms + 1, std::numeric_limits<int>::max())),
+                       static_cast<int>(std::min<std::int64_t>(
+                           clip->source_out_ms - 1, std::numeric_limits<int>::max())));
+    position->setValue(static_cast<int>(std::min<std::int64_t>(
+        default_split, std::numeric_limits<int>::max())));
+    position->setSuffix(" ms");
+    layout->addRow("Split at source time:", position);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
+                                         Qt::Horizontal, &dialog);
+    layout->addRow(buttons);
+    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    if (dialog.exec() != QDialog::Accepted) return;
+
+    const auto new_id = project_.split_clip(selected_track_id_.toStdString(),
+        selected_clip_id_.toStdString(), position->value());
+    if (!new_id) {
+        status_label_->setText("Could not split the selected clip at that position.");
+        return;
+    }
+    selected_clip_id_ = QString::fromStdString(*new_id);
+    timeline_widget_->refresh();
+    status_label_->setText(QString("Clip split at %1 ms. New clip: %2.")
+        .arg(position->value()).arg(selected_clip_id_));
+}
+
+void MainWindow::trim_selected_clip() {
+    if (selected_track_id_.isEmpty() || selected_clip_id_.isEmpty()) {
+        status_label_->setText("Select a timeline clip before trimming.");
+        return;
+    }
+    const auto track = std::find_if(project_.tracks().begin(), project_.tracks().end(),
+        [&](const vecut::Track& item) {
+            return QString::fromStdString(item.id) == selected_track_id_;
+        });
+    if (track == project_.tracks().end()) return;
+    const auto clip = std::find_if(track->clips.begin(), track->clips.end(),
+        [&](const vecut::Clip& item) {
+            return QString::fromStdString(item.id) == selected_clip_id_;
+        });
+    if (clip == track->clips.end()) return;
+    const auto media = std::find_if(project_.media().begin(), project_.media().end(),
+        [&](const vecut::MediaAsset& item) { return item.id == clip->media_id; });
+    if (media == project_.media().end() || media->duration_ms <= 0) {
+        status_label_->setText("Media duration is not available for trimming.");
+        return;
+    }
+
+    const int maximum = static_cast<int>(std::min<std::int64_t>(
+        media->duration_ms, std::numeric_limits<int>::max()));
+    QDialog dialog(this);
+    dialog.setWindowTitle("Trim clip");
+    auto* layout = new QFormLayout(&dialog);
+    auto* in_point = new QSpinBox(&dialog);
+    auto* out_point = new QSpinBox(&dialog);
+    in_point->setRange(0, std::max(0, maximum - 1));
+    out_point->setRange(1, std::max(1, maximum));
+    in_point->setValue(static_cast<int>(std::min<std::int64_t>(
+        clip->source_in_ms, maximum - 1)));
+    out_point->setValue(static_cast<int>(std::min<std::int64_t>(
+        clip->source_out_ms, maximum)));
+    in_point->setSuffix(" ms");
+    out_point->setSuffix(" ms");
+    layout->addRow("Source IN:", in_point);
+    layout->addRow("Source OUT:", out_point);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
+                                         Qt::Horizontal, &dialog);
+    layout->addRow(buttons);
+    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    if (dialog.exec() != QDialog::Accepted) return;
+    if (out_point->value() <= in_point->value()) {
+        status_label_->setText("Source OUT must be after source IN.");
+        return;
+    }
+    if (!project_.trim_clip(selected_track_id_.toStdString(),
+            selected_clip_id_.toStdString(), in_point->value(), out_point->value())) {
+        status_label_->setText("The trim range is invalid or exceeds the media duration.");
+        return;
+    }
+    timeline_widget_->refresh();
+    status_label_->setText(QString("Clip trimmed to %1–%2 ms.")
+        .arg(in_point->value()).arg(out_point->value()));
+}
+
+void MainWindow::edit_selected_transition() {
+    if (selected_track_id_.isEmpty() || selected_clip_id_.isEmpty()) {
+        status_label_->setText("Select a timeline clip before editing its transition.");
+        return;
+    }
+    const auto track = std::find_if(project_.tracks().begin(), project_.tracks().end(),
+        [&](const vecut::Track& item) {
+            return QString::fromStdString(item.id) == selected_track_id_;
+        });
+    if (track == project_.tracks().end()) return;
+    const auto clip = std::find_if(track->clips.begin(), track->clips.end(),
+        [&](const vecut::Clip& item) {
+            return QString::fromStdString(item.id) == selected_clip_id_;
+        });
+    if (clip == track->clips.end()) return;
+
+    QDialog dialog(this);
+    dialog.setWindowTitle("Clip transition");
+    auto* layout = new QFormLayout(&dialog);
+    auto* kind = new QComboBox(&dialog);
+    kind->addItem("None", static_cast<int>(vecut::TransitionKind::None));
+    kind->addItem("Fade", static_cast<int>(vecut::TransitionKind::Fade));
+    kind->addItem("Dissolve", static_cast<int>(vecut::TransitionKind::Dissolve));
+    kind->addItem("Wipe left to right", static_cast<int>(vecut::TransitionKind::WipeLeftToRight));
+    kind->addItem("Wipe right to left", static_cast<int>(vecut::TransitionKind::WipeRightToLeft));
+    kind->addItem("Slide left to right", static_cast<int>(vecut::TransitionKind::SlideLeftToRight));
+    kind->addItem("Slide right to left", static_cast<int>(vecut::TransitionKind::SlideRightToLeft));
+    const int existing_kind = static_cast<int>(clip->incoming_transition.kind);
+    kind->setCurrentIndex(std::max(0, kind->findData(existing_kind)));
+    auto* duration = new QSpinBox(&dialog);
+    const int max_duration = static_cast<int>(std::min<std::int64_t>(
+        clip->source_out_ms - clip->source_in_ms, std::numeric_limits<int>::max()));
+    duration->setRange(0, std::max(0, max_duration));
+    duration->setValue(static_cast<int>(std::min<std::int64_t>(
+        clip->incoming_transition.duration_ms, max_duration)));
+    duration->setSuffix(" ms");
+    layout->addRow("Transition:", kind);
+    layout->addRow("Duration:", duration);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
+                                         Qt::Horizontal, &dialog);
+    layout->addRow(buttons);
+    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    if (dialog.exec() != QDialog::Accepted) return;
+
+    vecut::Transition transition;
+    transition.kind = static_cast<vecut::TransitionKind>(kind->currentData().toInt());
+    transition.duration_ms = transition.kind == vecut::TransitionKind::None
+        ? 0 : duration->value();
+    if (!project_.set_transition(selected_track_id_.toStdString(),
+            selected_clip_id_.toStdString(), transition)) {
+        status_label_->setText("Could not apply that transition.");
+        return;
+    }
+    timeline_widget_->refresh();
+    status_label_->setText("Clip transition saved in the project.");
 }
 
 void MainWindow::update_track_list() {
