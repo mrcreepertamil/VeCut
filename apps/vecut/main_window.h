@@ -2,6 +2,8 @@
 
 #include "vecut/project.h"
 
+#include <QString>
+
 #include <QMainWindow>
 
 #include <cstdint>
@@ -18,7 +20,6 @@ class QAudioOutput;
 class QVideoWidget;
 class QStackedWidget;
 class QSlider;
-class QString;
 class TimelineWidget;
 
 class MainWindow final : public QMainWindow {
