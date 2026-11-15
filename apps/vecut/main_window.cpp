@@ -872,10 +872,12 @@ void MainWindow::load_preview_media(const QString& media_id) {
         });
     if (found == project_.media().end()) return;
 
-    preview_player_->stop();
+    preview_player_ = found->kind == vecut::MediaKind::Audio
+        ? audio_preview_->player() : video_preview_->player();
+    video_preview_->clear();
+    audio_preview_->clear();
     if (preview_effect_timer_) preview_effect_timer_->stop();
     preview_effect_time_ms_ = 0;
-    preview_player_->setSource(QUrl());
     preview_seek_->setRange(0, 0);
     preview_seek_->setValue(0);
     preview_play_button_->setText("Play");
