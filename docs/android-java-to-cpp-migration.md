@@ -50,5 +50,10 @@ hardware acceleration still require builds and device tests on those platforms.
 The selected-clip frame composition logic now lives in
 `apps/vecut/preview_compositor.h/.cpp`, separate from the main window. It
 accepts a decoded/still `QImage`, target size, selected clip and elapsed clip
-time, then returns a composed frame. It currently uses QPainter on the CPU;
-it is not a GPU shader pipeline, adjacent-clip compositor, or export renderer.
+time, then returns a composed frame. It currently uses QPainter on the CPU. The legacy Android shader looks have
+also been moved into a portable GLSL ES 2.0 source library
+(`preview_shader_library.h/.cpp`): Normal, Monochrome, Warm, Cool, Sepia,
+Vintage, Invert and Contrast. These shaders are groundwork only: the current
+QLabel/QImage preview has no OpenGL context, so a QOpenGLWidget renderer still
+needs to be implemented before the filters execute on the GPU. This is not an
+adjacent-clip compositor or export renderer.
