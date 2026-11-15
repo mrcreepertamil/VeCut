@@ -3,6 +3,7 @@
 #include "vecut/project.h"
 #include "video_preview.h"
 #include "audio_preview.h"
+#include "preview_compositor.h"
 
 #include <QString>
 #include <QImage>
@@ -66,6 +67,7 @@ private:
     QLabel* preview_label_ = nullptr;
 
     QImage current_preview_frame_;
+    PreviewCompositor preview_compositor_;
     QTimer* preview_effect_timer_ = nullptr;
     std::int64_t preview_effect_time_ms_ = 0;
     QStackedWidget* preview_stack_ = nullptr;
