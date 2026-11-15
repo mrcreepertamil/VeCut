@@ -25,6 +25,10 @@ public final class CodecVideoPlayer {
     private Thread worker;
 
     public synchronized void play(Uri uri, Surface surface, Listener listener) {
+        play(uri, surface, listener, 0);
+    }
+
+    public synchronized void play(Uri uri, Surface surface, Listener listener, long seekPositionMs) {
         stop();
         if (uri == null || surface == null || !surface.isValid()) {
             listener.onError("Video preview surface is not ready.");
@@ -34,7 +38,9 @@ public final class CodecVideoPlayer {
         finished = false;
         paused = false;
         playing = true;
-        worker = new Thread(() -> decode(uri, surface, listener), "VeCut-MediaCodec");
+        long safeSeekMs = Math.max(0, seekPositionMs);
+        worker = new Thread(() -> decode(uri, surface, listener, safeSeekMs),
+                "VeCut-MediaCodec");
         worker.start();
     }
 
@@ -70,7 +76,7 @@ public final class CodecVideoPlayer {
         }
     }
 
-    private void decode(Uri uri, Surface surface, Listener listener) {
+    private void decode(Uri uri, Surface surface, Listener listener, long seekPositionMs) {
         MediaExtractor extractor = new MediaExtractor();
         MediaCodec codec = null;
         try {
@@ -105,6 +111,10 @@ public final class CodecVideoPlayer {
                 throw new IOException("This file does not contain a video track.");
             }
             extractor.selectTrack(videoTrack);
+            long requestedPositionUs = seekPositionMs * 1000L;
+            if (requestedPositionUs > 0) {
+                extractor.seekTo(requestedPositionUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
+            }
             String mime = videoFormat.getString(MediaFormat.KEY_MIME);
             codec = MediaCodec.createDecoderByType(mime);
             codec.configure(videoFormat, surface, null, 0);
@@ -148,13 +158,17 @@ public final class CodecVideoPlayer {
                     boolean endOfStream =
                             (info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0;
                     if (info.size > 0) {
-                        if (firstPresentationUs < 0) {
-                            firstPresentationUs = info.presentationTimeUs;
-                            playbackStartNs = System.nanoTime();
+                        if (info.presentationTimeUs < requestedPositionUs) {
+                            codec.releaseOutputBuffer(outputIndex, false);
+                        } else {
+                            if (firstPresentationUs < 0) {
+                                firstPresentationUs = info.presentationTimeUs;
+                                playbackStartNs = System.nanoTime();
+                            }
+                            long renderAtNs = playbackStartNs
+                                    + Math.max(0, info.presentationTimeUs - firstPresentationUs) * 1000L;
+                            codec.releaseOutputBuffer(outputIndex, renderAtNs);
                         }
-                        long renderAtNs = playbackStartNs
-                                + Math.max(0, info.presentationTimeUs - firstPresentationUs) * 1000L;
-                        codec.releaseOutputBuffer(outputIndex, renderAtNs);
                     } else {
                         codec.releaseOutputBuffer(outputIndex, false);
                     }
