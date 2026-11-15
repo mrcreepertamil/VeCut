@@ -26,6 +26,8 @@ struct MediaAsset {
 struct Transition {
     TransitionKind kind = TransitionKind::None;
     std::int64_t duration_ms = 0;
+    std::int64_t fade_in_ms = 0;
+    std::int64_t fade_out_ms = 0;
 };
 
 struct ClipAnimation {
@@ -42,8 +44,6 @@ struct Clip {
     std::int64_t timeline_start_ms = -1;
     Transition incoming_transition;
     ClipAnimation animation;
-    std::int64_t fade_in_ms = 0;
-    std::int64_t fade_out_ms = 0;
     double volume = 1.0;
 };
 
@@ -81,8 +81,6 @@ public:
                          double volume);
     bool set_clip_animation(const std::string& track_id, const std::string& clip_id,
                             ClipAnimation animation);
-    bool set_clip_fades(const std::string& track_id, const std::string& clip_id,
-                        std::int64_t fade_in_ms, std::int64_t fade_out_ms);
     std::optional<std::string> split_clip(const std::string& track_id,
                                            const std::string& clip_id,
                                            std::int64_t split_source_time_ms);
