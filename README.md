@@ -20,7 +20,7 @@ The Qt UI switches layout based on available window width:
 - **Desktop landscape (720 px and wider):** media bin beside the larger preview, with the timeline spanning the bottom.
 - The same C++ widgets and project state are used in both layouts; this is a responsive rearrangement, not separate Android/iOS and PC editor implementations.
 
-The mobile layout is designed for portrait use. The shared application target now declares an iOS app bundle and uses only Qt Widgets and Qt Multimedia; iOS packaging, file-picker behavior, signing, and touch-device testing still require verification with an Apple build environment and the matching Qt iOS kit.
+The mobile layout is designed for portrait use. The shared application target now declares an iOS app bundle and uses Qt Widgets, Qt Multimedia and Qt OpenGLWidgets; iOS packaging, file-picker behavior, signing, OpenGL context creation and touch-device testing still require verification with an Apple build environment and the matching Qt iOS kit.
 
 ## C++ application and engine
 
