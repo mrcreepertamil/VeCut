@@ -10,6 +10,7 @@ namespace vecut {
 enum class MediaKind { Video, Audio, Image };
 enum class TrackKind { Video, Audio, Overlay };
 enum class TransitionKind { None, Fade, Dissolve, WipeLeftToRight, WipeRightToLeft, SlideLeftToRight, SlideRightToLeft };
+enum class AnimationKind { None, ZoomIn, ZoomOut, PanLeft, PanRight, PanUp, PanDown, RotateClockwise, RotateCounterClockwise };
 
 struct MediaAsset {
     std::string id;
@@ -27,6 +28,11 @@ struct Transition {
     std::int64_t duration_ms = 0;
 };
 
+struct ClipAnimation {
+    AnimationKind kind = AnimationKind::None;
+    std::int64_t duration_ms = 0;
+};
+
 struct Clip {
     std::string id;
     std::string media_id;
@@ -35,6 +41,9 @@ struct Clip {
     // Position on the project timeline. -1 appends after the track's current end.
     std::int64_t timeline_start_ms = -1;
     Transition incoming_transition;
+    ClipAnimation animation;
+    std::int64_t fade_in_ms = 0;
+    std::int64_t fade_out_ms = 0;
     double volume = 1.0;
 };
 
@@ -70,6 +79,10 @@ public:
                         Transition transition);
     bool set_clip_volume(const std::string& track_id, const std::string& clip_id,
                          double volume);
+    bool set_clip_animation(const std::string& track_id, const std::string& clip_id,
+                            ClipAnimation animation);
+    bool set_clip_fades(const std::string& track_id, const std::string& clip_id,
+                        std::int64_t fade_in_ms, std::int64_t fade_out_ms);
     std::optional<std::string> split_clip(const std::string& track_id,
                                            const std::string& clip_id,
                                            std::int64_t split_source_time_ms);
