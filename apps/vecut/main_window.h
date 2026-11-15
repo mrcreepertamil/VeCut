@@ -81,7 +81,6 @@ private:
         std::int64_t timeline_start_ms = 0;
         std::int64_t timeline_end_ms = 0;
         std::int64_t source_in_ms = 0;
-        double volume = 1.0;
         bool started = false;
     };
     std::vector<AudioMixChannel> audio_mix_channels_;
