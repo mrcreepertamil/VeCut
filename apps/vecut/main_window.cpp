@@ -534,6 +534,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     split_button_ = new QPushButton("Split", timeline_panel_);
     trim_button_ = new QPushButton("Trim", timeline_panel_);
     transition_button_ = new QPushButton("Transition", timeline_panel_);
+    remove_clip_button_ = new QPushButton("Remove clip", timeline_panel_);
     add_video_button_ = new QPushButton("+ Video track", timeline_panel_);
     add_audio_button_ = new QPushButton("+ Audio track", timeline_panel_);
     add_video_button_->setMinimumHeight(40);
@@ -541,6 +542,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     timeline_toolbar->addWidget(split_button_);
     timeline_toolbar->addWidget(trim_button_);
     timeline_toolbar->addWidget(transition_button_);
+    timeline_toolbar->addWidget(remove_clip_button_);
     timeline_toolbar->addWidget(add_video_button_);
     timeline_toolbar->addWidget(add_audio_button_);
     timeline_layout->addLayout(timeline_toolbar);
@@ -563,6 +565,26 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
             if (clip_id.isEmpty()) {
                 status_label_->setText("No timeline clip selected.");
                 return;
+            }
+            const auto track = std::find_if(project_.tracks().begin(), project_.tracks().end(),
+                [&](const vecut::Track& item) {
+                    return QString::fromStdString(item.id) == track_id;
+                });
+            if (track != project_.tracks().end()) {
+                const auto clip = std::find_if(track->clips.begin(), track->clips.end(),
+                    [&](const vecut::Clip& item) {
+                        return QString::fromStdString(item.id) == clip_id;
+                    });
+                if (clip != track->clips.end()) {
+                    const auto media = std::find_if(project_.media().begin(), project_.media().end(),
+                        [&](const vecut::MediaAsset& item) { return item.id == clip->media_id; });
+                    if (media != project_.media().end()) {
+                        const QString media_id = QString::fromStdString(media->id);
+                        load_preview_media(media_id);
+                        if (media->kind != vecut::MediaKind::Image)
+                            preview_player_->setPosition(clip->source_in_ms);
+                    }
+                }
             }
             status_label_->setText(QString("Selected clip %1 on %2.")
                 .arg(clip_id, track_id));
@@ -604,6 +626,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
             [this] { trim_selected_clip(); });
     connect(transition_button_, &QPushButton::clicked, this,
             [this] { edit_selected_transition(); });
+    connect(remove_clip_button_, &QPushButton::clicked, this,
+            [this] { remove_selected_clip(); });
 
     setStyleSheet(
         "QMainWindow,#root{background:#0f1015;}"
@@ -1201,8 +1225,11 @@ void MainWindow::split_selected_clip() {
         return;
     }
 
-    const auto default_split = clip->source_in_ms +
+    const auto midpoint = clip->source_in_ms +
         (clip->source_out_ms - clip->source_in_ms) / 2;
+    const auto playhead = preview_player_ ? preview_player_->position() : midpoint;
+    const auto default_split = playhead > clip->source_in_ms &&
+        playhead < clip->source_out_ms ? playhead : midpoint;
     QDialog dialog(this);
     dialog.setWindowTitle("Split clip");
     auto* layout = new QFormLayout(&dialog);
@@ -1349,6 +1376,23 @@ void MainWindow::edit_selected_transition() {
     }
     timeline_widget_->refresh();
     status_label_->setText("Clip transition saved in the project.");
+}
+
+
+void MainWindow::remove_selected_clip() {
+    if (selected_track_id_.isEmpty() || selected_clip_id_.isEmpty()) {
+        status_label_->setText("Select a timeline clip before removing it.");
+        return;
+    }
+    if (!project_.remove_clip(selected_track_id_.toStdString(),
+                              selected_clip_id_.toStdString())) {
+        status_label_->setText("Could not remove the selected clip.");
+        return;
+    }
+    selected_track_id_.clear();
+    selected_clip_id_.clear();
+    timeline_widget_->refresh();
+    status_label_->setText("Clip removed from the timeline. Source media remains in the media bin.");
 }
 
 void MainWindow::update_track_list() {
