@@ -1,6 +1,7 @@
 #include "gpu_preview_widget.h"
 
 #include <QOpenGLContext>
+#include <QOpenGLShader>
 #include <QPainter>
 #include <QSurfaceFormat>
 
