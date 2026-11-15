@@ -507,12 +507,53 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
             render_preview_frame();
         }
     });
+    preview_effect_timer_ = new QTimer(this);
+    preview_effect_timer_->setInterval(16);
+    connect(preview_effect_timer_, &QTimer::timeout, this, [this] {
+        const auto track = std::find_if(project_.tracks().begin(), project_.tracks().end(),
+            [&](const vecut::Track& item) {
+                return QString::fromStdString(item.id) == selected_track_id_;
+            });
+        if (track == project_.tracks().end()) {
+            preview_effect_timer_->stop();
+            preview_play_button_->setText("Play");
+            return;
+        }
+        const auto clip = std::find_if(track->clips.begin(), track->clips.end(),
+            [&](const vecut::Clip& item) {
+                return QString::fromStdString(item.id) == selected_clip_id_;
+            });
+        if (clip == track->clips.end()) {
+            preview_effect_timer_->stop();
+            preview_play_button_->setText("Play");
+            return;
+        }
+        preview_effect_time_ms_ = std::min<std::int64_t>(
+            preview_effect_time_ms_ + 16, clip->source_out_ms - clip->source_in_ms);
+        preview_seek_->setValue(static_cast<int>(preview_effect_time_ms_));
+        render_preview_frame();
+        if (preview_effect_time_ms_ >= clip->source_out_ms - clip->source_in_ms) {
+            preview_effect_timer_->stop();
+            preview_play_button_->setText("Play");
+        }
+    });
     connect(preview_play_button_, &QPushButton::clicked, this, [this] {
-        if (!preview_player_ || preview_player_->source().isEmpty()) return;
-        if (preview_player_->playbackState() == QMediaPlayer::PlayingState)
-            preview_player_->pause();
-        else
-            preview_player_->play();
+        if (!preview_player_) return;
+        if (!preview_player_->source().isEmpty()) {
+            if (preview_player_->playbackState() == QMediaPlayer::PlayingState)
+                preview_player_->pause();
+            else
+                preview_player_->play();
+            return;
+        }
+        if (current_preview_frame_.isNull() || selected_clip_id_.isEmpty()) return;
+        if (preview_effect_timer_->isActive()) {
+            preview_effect_timer_->stop();
+            preview_play_button_->setText("Play");
+        } else {
+            preview_effect_timer_->start();
+            preview_play_button_->setText("Pause");
+        }
     });
     connect(preview_player_, &QMediaPlayer::playbackStateChanged, this,
             [this](QMediaPlayer::PlaybackState state) {
@@ -528,7 +569,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
         render_preview_frame();
     });
     connect(preview_seek_, &QSlider::sliderMoved, this, [this](int position) {
-        preview_player_->setPosition(position);
+        if (!preview_player_->source().isEmpty()) {
+            preview_player_->setPosition(position);
+        } else {
+            preview_effect_time_ms_ = std::max(0, position);
+            render_preview_frame();
+        }
     });
     connect(preview_player_, &QMediaPlayer::errorOccurred, this,
             [this](QMediaPlayer::Error, const QString& error) {
@@ -681,6 +727,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 void MainWindow::resizeEvent(QResizeEvent* event) {
     QMainWindow::resizeEvent(event);
     apply_responsive_layout();
+    render_preview_frame();
 }
 
 void MainWindow::apply_responsive_layout() {
@@ -827,6 +874,8 @@ void MainWindow::load_preview_media(const QString& media_id) {
     if (found == project_.media().end()) return;
 
     preview_player_->stop();
+    if (preview_effect_timer_) preview_effect_timer_->stop();
+    preview_effect_time_ms_ = 0;
     preview_player_->setSource(QUrl());
     preview_seek_->setRange(0, 0);
     preview_seek_->setValue(0);
@@ -903,8 +952,9 @@ void MainWindow::render_preview_frame() {
     if (selected_clip && selected_track &&
         selected_track->kind != vecut::TrackKind::Audio) {
         const qint64 source_time = preview_player_ &&
-            preview_player_->source().isEmpty() == false
-            ? preview_player_->position() : selected_clip->source_in_ms;
+            !preview_player_->source().isEmpty()
+            ? preview_player_->position()
+            : selected_clip->source_in_ms + preview_effect_time_ms_;
         const qint64 clip_elapsed = std::max<qint64>(
             0, source_time - selected_clip->source_in_ms);
         const qint64 clip_duration = selected_clip->source_out_ms -
