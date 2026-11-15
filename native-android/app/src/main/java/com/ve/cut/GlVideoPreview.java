@@ -12,6 +12,8 @@ import android.view.Surface;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
+import java.util.ArrayList;
+import java.util.List;
 
 /** OpenGL ES external-texture preview fed by a decoder Surface. */
 public final class GlVideoPreview {
@@ -23,6 +25,8 @@ public final class GlVideoPreview {
     private volatile SurfaceTexture surfaceTexture;
     private volatile boolean hasVideo;
     private android.net.Uri lastUri;
+    private final List<android.net.Uri> playlist = new ArrayList<>();
+    private int playlistIndex;
     private boolean resumeAfterLifecyclePause;
     private Runnable playbackEndedCallback;
     private volatile int filterMode;
@@ -46,8 +50,28 @@ public final class GlVideoPreview {
     public void setVideo(android.net.Uri uri) {
         if (uri == null) return;
         hasVideo = true;
+        playlist.clear();
+        playlist.add(uri);
+        playlistIndex = 0;
         lastUri = uri;
         pending = new UriRequest(uri);
+        main.post(() -> {
+            if (decoderSurface != null) startPending();
+        });
+    }
+
+    /** Plays imported video clips in the order supplied, beginning at startUri. */
+    public void setPlaylist(List<android.net.Uri> uris, android.net.Uri startUri) {
+        if (uris == null || uris.isEmpty()) {
+            if (startUri != null) setVideo(startUri);
+            return;
+        }
+        playlist.clear();
+        playlist.addAll(uris);
+        playlistIndex = Math.max(0, playlist.indexOf(startUri));
+        lastUri = playlist.get(playlistIndex);
+        hasVideo = true;
+        pending = new UriRequest(lastUri);
         main.post(() -> {
             if (decoderSurface != null) startPending();
         });
@@ -76,6 +100,8 @@ public final class GlVideoPreview {
         hasVideo = false;
         pending = null;
         lastUri = null;
+        playlist.clear();
+        playlistIndex = 0;
         player.stop();
     }
 
@@ -116,7 +142,13 @@ public final class GlVideoPreview {
             @Override public void onPrepared() { }
             @Override public void onCompleted() {
                 main.post(() -> {
-                    if (playbackEndedCallback != null) playbackEndedCallback.run();
+                    if (playlistIndex + 1 < playlist.size() && hasVideo) {
+                        playlistIndex++;
+                        lastUri = playlist.get(playlistIndex);
+                        startDecoder(lastUri);
+                    } else if (playbackEndedCallback != null) {
+                        playbackEndedCallback.run();
+                    }
                 });
             }
             @Override public void onError(String message) {
