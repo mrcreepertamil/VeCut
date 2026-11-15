@@ -1380,6 +1380,7 @@ void MainWindow::edit_selected_transition() {
     dialog.setWindowTitle("Transitions and animations");
     auto* layout = new QFormLayout(&dialog);
     auto* kind = new QComboBox(&dialog);
+    layout->addRow(new QLabel("TRANSITIONS", &dialog));
     kind->addItem("None", static_cast<int>(vecut::TransitionKind::None));
     kind->addItem("Fade", static_cast<int>(vecut::TransitionKind::Fade));
     kind->addItem("Dissolve", static_cast<int>(vecut::TransitionKind::Dissolve));
@@ -1409,6 +1410,7 @@ void MainWindow::edit_selected_transition() {
     fade_out->setSuffix(" ms");
     layout->addRow("Transition fade in:", fade_in);
     layout->addRow("Transition fade out:", fade_out);
+    layout->addRow(new QLabel("ANIMATIONS", &dialog));
 
     auto* animation = new QComboBox(&dialog);
     animation->addItem("None", static_cast<int>(vecut::AnimationKind::None));
@@ -1429,6 +1431,10 @@ void MainWindow::edit_selected_transition() {
     animation_duration->setSuffix(" ms");
 
     const bool visual_track = track->kind != vecut::TrackKind::Audio;
+    kind->setEnabled(visual_track);
+    duration->setEnabled(visual_track);
+    fade_in->setEnabled(visual_track);
+    fade_out->setEnabled(visual_track);
     animation->setEnabled(visual_track);
     animation_duration->setEnabled(visual_track);
     layout->addRow("Clip animation (main / overlay):", animation);
