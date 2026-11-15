@@ -12,29 +12,37 @@ The project is moving away from Flutter/Dart and separate platform-language edit
 - **Platform media backends** — selected behind C++ interfaces as the engine grows. The existing Android MediaCodec/OpenGL ES preview is transitional and is not yet the cross-platform renderer.
 - **JavaScript plugins** — optional future third-party plugin scripting only; not used to implement the editor or its UI.
 
-## New C++ foundation
+## C++ application and engine
 
 - `engine/` contains the platform-independent C++17 project model.
-- The model currently represents media assets, video/audio/overlay tracks, clips, source trim ranges, incoming transitions, clip volume, splitting, clip ordering and project validation.
-- `apps/vecut/` contains the initial Qt Widgets application shell, written entirely in C++.
-- The root `CMakeLists.txt` builds the shared engine and Qt application.
+- The model represents media assets, video/audio/overlay tracks, clips, source trim ranges, incoming transitions, clip volume, splitting, clip ordering and project validation.
+- `apps/vecut/` contains the Qt Widgets application, written entirely in C++.
+- The desktop workspace now has a media-bin import dialog, selected-media information, preview placeholder, and controls to create video/audio tracks.
+- Media files are listed in the project, but duration probing, placing clips on tracks, decoding, playback and export are not connected yet. The UI deliberately does not invent media durations.
+- Engine unit tests cover clip ordering (including moving to the end), trimming, transitions, splitting, validation and removal.
 
-This is an architectural foundation, not a finished video editor. Project serialization, media import, real preview, synchronized audio/video playback, effects processing, final rendering/export, undo/redo, and platform packaging still need implementation.
+## Build
 
-## Build the C++ application
-
-Install a Qt 6.5+ kit with the Widgets module and a C++17-capable compiler, then configure from the repository root:
+To build the desktop application, install a Qt 6.5+ kit with the Widgets module and a C++17-capable compiler:
 
 ```sh
 cmake -S . -B build
 cmake --build build --config Release
 ```
 
+To configure and run only the platform-independent engine tests without Qt:
+
+```sh
+cmake -S . -B build-engine -DVECUT_BUILD_DESKTOP=OFF -DBUILD_TESTING=ON
+cmake --build build-engine
+ctest --test-dir build-engine --output-on-failure
+```
+
 Use the Qt kit and CMake toolchain appropriate to the target platform. Android and iOS builds require their respective Qt platform kits, SDKs and signing/deployment setup; they are not produced by a desktop build.
 
 ## Android transition project
 
-`native-android/` is the existing Android prototype retained during migration. Its Java activity and Android-specific media classes are transitional and have **not** yet been replaced by the C++/Qt application. The Android CMake target now also compiles the shared C++ project model. The existing prototype preview and timeline are not yet feature parity with the cross-platform app.
+`native-android/` is the existing Android prototype retained during migration. Its Java activity and Android-specific media classes are transitional and have **not** yet been replaced by the C++/Qt application. The Android CMake target also compiles the shared C++ project model. The existing prototype preview and timeline are not yet feature parity with the cross-platform app.
 
 ## Legacy prototype
 
@@ -42,4 +50,4 @@ The old Flutter/Dart prototype remains in `.oldproto/` as a temporary reference.
 
 ## Current status
 
-The repository now has the first shared C++17 project model and a C++ Qt UI shell. No cross-platform release builds have been verified yet. Do not treat the five platform targets as completed until each has been built, run and tested on its own toolchain.
+The shared C++17 project model, first engine tests, and initial Qt media-bin/track workspace are in place. No local or CI build has been verified for this update, and no cross-platform release builds have been verified. Do not treat the five platform targets as completed until each has been built, run and tested on its own toolchain.
