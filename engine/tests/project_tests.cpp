@@ -71,6 +71,12 @@ int main() {
     assert(project.trim_clip("video-1", "clip-1", 500, 3500));
     assert(!project.trim_clip("video-1", "clip-1", -1, 3500));
 
+    assert(project.set_clip_volume("video-1", "clip-1", 0.65));
+    assert(project.tracks().front().clips.front().volume == 0.65);
+    assert(project.set_clip_volume("video-1", "clip-1", 0.0));
+    assert(!project.set_clip_volume("video-1", "clip-1", 4.1));
+    assert(!project.set_clip_volume("video-1", "missing", 1.0));
+
     assert(project.set_transition("video-1", "clip-1",
                                   Transition{TransitionKind::Fade, 500}));
     assert(!project.set_transition("video-1", "clip-1",
