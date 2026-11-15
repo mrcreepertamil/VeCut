@@ -75,5 +75,26 @@ int main() {
 
     assert(project.remove_clip("video-1", *right_id));
     assert(!project.remove_clip("video-1", *right_id));
+
+    Project still_project("Still image clip test");
+    MediaAsset still;
+    still.id = "still-1";
+    still.uri = "file:///still.png";
+    still.display_name = "still.png";
+    still.kind = MediaKind::Image;
+    still.duration_ms = 5000;
+    assert(still_project.add_media(still));
+
+    Track still_track;
+    still_track.id = "still-video";
+    still_track.kind = TrackKind::Video;
+    assert(still_project.add_track(still_track));
+
+    Clip still_clip;
+    still_clip.id = "still-clip";
+    still_clip.media_id = still.id;
+    still_clip.source_in_ms = 0;
+    still_clip.source_out_ms = 5000;
+    assert(still_project.add_clip("still-video", still_clip));
     return 0;
 }
