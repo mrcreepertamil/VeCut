@@ -36,6 +36,34 @@ Java_com_ve_cut_NativeMediaEngine_nativeRemoveClip(JNIEnv*, jobject, jint clip_i
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
+Java_com_ve_cut_NativeMediaEngine_nativeSetClipTransition(JNIEnv*, jobject, jint clip_id,
+                                                           jint type, jlong duration_ms) {
+    return g_timeline.set_transition(static_cast<int>(clip_id), static_cast<int>(type),
+                                     static_cast<int64_t>(duration_ms)) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jlongArray JNICALL
+Java_com_ve_cut_NativeMediaEngine_nativeGetClipSettings(JNIEnv* env, jobject, jint clip_id) {
+    int64_t source_in = 0;
+    int64_t source_out = -1;
+    int transition_type = 0;
+    int64_t transition_duration = 0;
+    if (!g_timeline.get_clip_settings(static_cast<int>(clip_id), &source_in, &source_out,
+                                      &transition_type, &transition_duration)) {
+        return nullptr;
+    }
+    const jlong values[] = {
+        static_cast<jlong>(source_in),
+        static_cast<jlong>(source_out),
+        static_cast<jlong>(transition_type),
+        static_cast<jlong>(transition_duration)
+    };
+    jlongArray result = env->NewLongArray(4);
+    if (result != nullptr) env->SetLongArrayRegion(result, 0, 4, values);
+    return result;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
 Java_com_ve_cut_NativeMediaEngine_nativeSetClipDuration(JNIEnv*, jobject, jint clip_id, jlong duration_ms) {
     return g_timeline.set_clip_duration(static_cast<int>(clip_id),
                                         static_cast<int64_t>(duration_ms)) ? JNI_TRUE : JNI_FALSE;
