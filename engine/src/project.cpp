@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iterator>
 #include <utility>
 
 namespace vecut {
@@ -116,9 +117,7 @@ bool Project::move_clip(const std::string& track_id, const std::string& clip_id,
         [&](const Clip& clip) { return clip.id == clip_id; });
     if (it == track->clips.end()) return false;
     Clip moving = std::move(*it);
-    const auto current = static_cast<std::size_t>(std::distance(track->clips.begin(), it));
     track->clips.erase(it);
-    if (target_index > current) --target_index;
     track->clips.insert(track->clips.begin() + static_cast<std::ptrdiff_t>(target_index),
                         std::move(moving));
     return true;
