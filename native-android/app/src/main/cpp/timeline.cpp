@@ -28,6 +28,7 @@ bool Timeline::trim_clip(int id, int64_t source_in_ms, int64_t source_out_ms) {
         [id](const TimelineClip& clip) { return clip.id == id; });
     if (it == clips_.end()) return false;
     if (it->source_out_ms >= 0 && source_out_ms > it->source_out_ms) return false;
+    if (it->transition_type > 0 && it->transition_duration_ms > source_out_ms - source_in_ms) return false;
     it->source_in_ms = source_in_ms;
     it->source_out_ms = source_out_ms;
     return true;
@@ -72,6 +73,7 @@ bool Timeline::set_clip_duration(int id, int64_t duration_ms) {
         [id](const TimelineClip& clip) { return clip.id == id; });
     if (it == clips_.end()) return false;
     if (it->source_in_ms >= duration_ms) return false;
+    if (it->transition_type > 0 && it->transition_duration_ms > duration_ms - it->source_in_ms) return false;
     if (it->source_out_ms < 0 || it->source_out_ms > duration_ms) {
         it->source_out_ms = duration_ms;
     }
@@ -104,6 +106,8 @@ int Timeline::split_clip(int id, int64_t split_at_ms) {
     TimelineClip right = *it;
     right.id = next_id_++;
     right.source_in_ms = split_at_ms;
+    right.transition_type = 0;
+    right.transition_duration_ms = 0;
     it->source_out_ms = split_at_ms;
     const int new_id = right.id;
     clips_.insert(clips_.begin() + static_cast<std::ptrdiff_t>(current_index + 1),
