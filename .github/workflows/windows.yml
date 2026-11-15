@@ -19,27 +19,27 @@ jobs:
           channel: stable
 
       - name: Generate Windows platform files
-        working-directory: app
+        working-directory: .
         run: flutter create --platforms=windows .
 
       - name: Install dependencies
-        working-directory: app
+        working-directory: .
         run: flutter pub get
 
       - name: Analyze Dart code
-        working-directory: app
+        working-directory: .
         run: flutter analyze
 
       - name: Run tests
-        working-directory: app
+        working-directory: .
         run: flutter test
 
       - name: Build Windows release
-        working-directory: app
+        working-directory: .
         run: flutter build windows --release
 
       - name: Upload Windows build
         uses: actions/upload-artifact@v4
         with:
           name: vecut-windows-build
-          path: app/build/windows/x64/runner/Release/
+          path: build/windows/x64/runner/Release/
