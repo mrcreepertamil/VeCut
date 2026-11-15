@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include <vector>
+#include <QElapsedTimer>
 
 class QLabel;
 class QListWidget;
@@ -20,6 +21,7 @@ class QAudioOutput;
 class QVideoWidget;
 class QStackedWidget;
 class QSlider;
+class QTimer;
 class TimelineWidget;
 
 class MainWindow final : public QMainWindow {
@@ -46,6 +48,9 @@ private:
     void edit_selected_transition();
     void edit_selected_volume();
     void remove_selected_clip();
+    void toggle_timeline_audio();
+    void stop_timeline_audio();
+    void update_timeline_audio();
     void add_media_to_track(const QString& media_id, const QString& track_id,
                             std::int64_t timeline_start_ms);
 
@@ -69,6 +74,20 @@ private:
     QPushButton* trim_button_ = nullptr;
     QPushButton* transition_button_ = nullptr;
     QPushButton* volume_button_ = nullptr;
+    QPushButton* timeline_audio_button_ = nullptr;
+    struct AudioMixChannel {
+        QMediaPlayer* player = nullptr;
+        QAudioOutput* output = nullptr;
+        std::int64_t timeline_start_ms = 0;
+        std::int64_t timeline_end_ms = 0;
+        std::int64_t source_in_ms = 0;
+        double volume = 1.0;
+        bool started = false;
+    };
+    std::vector<AudioMixChannel> audio_mix_channels_;
+    QTimer* audio_mix_timer_ = nullptr;
+    QElapsedTimer audio_mix_clock_;
+    bool timeline_audio_playing_ = false;
     QPushButton* remove_clip_button_ = nullptr;
     QString selected_track_id_;
     QString selected_clip_id_;
