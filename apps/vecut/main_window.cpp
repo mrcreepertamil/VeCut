@@ -41,6 +41,8 @@
 #include <QIcon>
 #include <QUrl>
 #include <QPushButton>
+#include <QShortcut>
+#include <QKeySequence>
 #include <QDialog>
 #include <QFormLayout>
 #include <QSpinBox>
@@ -726,6 +728,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     connect(import_button, &QPushButton::clicked, this, [this] { import_media(); });
     connect(undo_button_, &QPushButton::clicked, this, [this] { undo_edit(); });
     connect(redo_button_, &QPushButton::clicked, this, [this] { redo_edit(); });
+    auto* undo_shortcut = new QShortcut(QKeySequence::Undo, this);
+    auto* redo_shortcut = new QShortcut(QKeySequence::Redo, this);
+    connect(undo_shortcut, &QShortcut::activated, this, [this] { undo_edit(); });
+    connect(redo_shortcut, &QShortcut::activated, this, [this] { redo_edit(); });
     connect(media_list_, &QListWidget::currentItemChanged, this,
             [this](QListWidgetItem*, QListWidgetItem*) { update_media_details(); });
     connect(add_video_button_, &QPushButton::clicked, this,
