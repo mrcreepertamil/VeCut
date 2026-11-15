@@ -116,9 +116,16 @@ bool Project::move_clip(const std::string& track_id, const std::string& clip_id,
     const auto it = std::find_if(track->clips.begin(), track->clips.end(),
         [&](const Clip& clip) { return clip.id == clip_id; });
     if (it == track->clips.end()) return false;
+
+    const auto current_index = static_cast<std::size_t>(std::distance(track->clips.begin(), it));
+    if (current_index == target_index) return true;
+
     Clip moving = std::move(*it);
     track->clips.erase(it);
-    track->clips.insert(track->clips.begin() + static_cast<std::ptrdiff_t>(target_index),
+    // target_index is the desired final index in the original ordering. If the
+    // clip was last, erasing it makes the new end equal to target_index.
+    const auto insertion_index = std::min(target_index, track->clips.size());
+    track->clips.insert(track->clips.begin() + static_cast<std::ptrdiff_t>(insertion_index),
                         std::move(moving));
     return true;
 }
