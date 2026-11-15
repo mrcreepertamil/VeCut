@@ -3,6 +3,7 @@ package com.ve.cut;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.ClipData;
 import android.graphics.Color;
 import android.graphics.Bitmap;
 import android.graphics.Typeface;
@@ -39,6 +40,7 @@ public final class MainActivity extends Activity {
     private static final int ACCENT = Color.rgb(34, 197, 94);
 
     private TextView mediaHint;
+    private TextView projectTitle;
     private ImageView previewImage;
     private View emptyPreview;
     private TextView selectedClip;
@@ -115,7 +117,9 @@ public final class MainActivity extends Activity {
         names.setOrientation(LinearLayout.VERTICAL);
         names.setPadding(dp(10), 0, 0, 0);
         names.addView(label("VeCut", 17, TEXT, true));
-        names.addView(label("UNTITLED PROJECT", 9, MUTED, true));
+        projectTitle = label(ProjectStore.getProjectName(getApplicationContext()).toUpperCase(Locale.US), 9, MUTED, true);
+        names.addView(projectTitle);
+        names.setOnClickListener(v -> showRenameProjectDialog());
         bar.addView(names, new LinearLayout.LayoutParams(0,
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
@@ -423,6 +427,7 @@ public final class MainActivity extends Activity {
         intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[] {
                 "video/*", "image/*", "audio/*"
         });
+        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
         startActivityForResult(intent, REQUEST_MEDIA);
     }
 
@@ -452,8 +457,19 @@ public final class MainActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode != REQUEST_MEDIA || resultCode != RESULT_OK || data == null) return;
-        Uri uri = data.getData();
-        if (uri == null) return;
+
+        ClipData selectedItems = data.getClipData();
+        if (selectedItems != null) {
+            for (int i = 0; i < selectedItems.getItemCount(); i++) {
+                Uri itemUri = selectedItems.getItemAt(i).getUri();
+                if (itemUri != null) importMediaUri(itemUri);
+            }
+        } else if (data.getData() != null) {
+            importMediaUri(data.getData());
+        }
+    }
+
+    private void importMediaUri(Uri uri) {
         try {
             getContentResolver().takePersistableUriPermission(uri,
                     Intent.FLAG_GRANT_READ_URI_PERMISSION);
@@ -482,6 +498,26 @@ public final class MainActivity extends Activity {
                 toast("Imported media · Clip #" + clipId);
             });
         });
+    }
+
+    private void showRenameProjectDialog() {
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setText(ProjectStore.getProjectName(getApplicationContext()));
+        input.setSelection(input.getText().length());
+        input.setHint("Project name");
+        new AlertDialog.Builder(this).setTitle("Rename project")
+                .setView(input).setNegativeButton("Cancel", null)
+                .setPositiveButton("Save", (dialog, which) -> {
+                    String name = input.getText().toString().trim();
+                    if (name.isEmpty()) {
+                        toast("Project name cannot be empty.");
+                        return;
+                    }
+                    ProjectStore.setProjectName(getApplicationContext(), name);
+                    projectTitle.setText(name.toUpperCase(Locale.US));
+                    toast("Project renamed.");
+                }).show();
     }
 
     @Override
