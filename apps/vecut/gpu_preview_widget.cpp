@@ -46,6 +46,8 @@ void GpuPreviewWidget::initializeGL() {
     initializeOpenGLFunctions();
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glClearColor(0.035f, 0.04f, 0.055f, 1.0f);
 
     glGenTextures(1, &texture_);
