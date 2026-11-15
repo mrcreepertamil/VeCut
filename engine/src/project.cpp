@@ -104,7 +104,10 @@ bool Project::trim_clip(const std::string& track_id, const std::string& clip_id,
     const MediaAsset* asset = find_media(clip->media_id);
     if (!asset || source_in_ms < 0 || source_out_ms <= source_in_ms ||
         source_out_ms > asset->duration_ms) return false;
-    if (clip->incoming_transition.duration_ms > source_out_ms - source_in_ms) return false;
+    const auto new_duration = source_out_ms - source_in_ms;
+    if (clip->incoming_transition.duration_ms > new_duration ||
+        clip->animation.duration_ms > new_duration || clip->fade_in_ms > new_duration ||
+        clip->fade_out_ms > new_duration) return false;
     clip->source_in_ms = source_in_ms;
     clip->source_out_ms = source_out_ms;
     return true;
