@@ -68,6 +68,7 @@ public final class GlVideoPreview {
     public void clearVideo() {
         hasVideo = false;
         pending = null;
+        lastUri = null;
         player.stop();
     }
 
