@@ -414,7 +414,7 @@ public final class MainActivity extends Activity {
             toast("Import a video before applying preview filters.");
             return;
         }
-        String[] filters = {"Normal", "Monochrome", "Warm", "Cool"};
+        String[] filters = {"Normal", "Monochrome", "Warm", "Cool", "Sepia", "Vintage", "Invert", "High contrast"};
         new AlertDialog.Builder(this).setTitle("Preview effects")
                 .setSingleChoiceItems(filters, -1, (dialog, which) -> {
                     videoPreview.setFilterMode(which);
@@ -422,6 +422,47 @@ public final class MainActivity extends Activity {
                     toast(filters[which] + " preview filter applied.");
                 })
                 .setNegativeButton("Cancel", null).show();
+    }
+
+
+    private void showFadeDialog() {
+        if (videoPreview == null || !videoPreview.hasVideo()) {
+            toast("Import a video before configuring fades.");
+            return;
+        }
+        LinearLayout fields = new LinearLayout(this);
+        fields.setOrientation(LinearLayout.VERTICAL);
+        fields.setPadding(dp(20), dp(8), dp(20), 0);
+        android.widget.CheckBox fadeIn = new android.widget.CheckBox(this);
+        fadeIn.setText("Fade in from black");
+        fadeIn.setTextColor(TEXT);
+        android.widget.CheckBox fadeOut = new android.widget.CheckBox(this);
+        fadeOut.setText("Fade out to black");
+        fadeOut.setTextColor(TEXT);
+        SeekBar duration = new SeekBar(this);
+        duration.setMax(29);
+        duration.setProgress(4);
+        TextView durationLabel = label("Duration: 500 ms", 12, MUTED, false);
+        duration.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar bar, int value, boolean fromUser) {
+                durationLabel.setText("Duration: " + ((value + 1) * 100) + " ms");
+            }
+            @Override public void onStartTrackingTouch(SeekBar bar) { }
+            @Override public void onStopTrackingTouch(SeekBar bar) { }
+        });
+        fields.addView(fadeIn);
+        fields.addView(fadeOut);
+        fields.addView(durationLabel);
+        fields.addView(duration);
+        new AlertDialog.Builder(this).setTitle("Clip fades")
+                .setMessage("Preview fade transitions at the start and end of the selected video.")
+                .setView(fields)
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Apply", (dialog, which) -> {
+                    int durationMs = (duration.getProgress() + 1) * 100;
+                    videoPreview.setFadeSettings(fadeIn.isChecked(), fadeOut.isChecked(), durationMs);
+                    toast("Fade settings applied to video preview.");
+                }).show();
     }
 
     private void showTrimDialog() {
@@ -477,6 +518,7 @@ public final class MainActivity extends Activity {
         tools.addView(tool("⌁", "Split", false));
         tools.addView(tool("T", "Text", false));
         tools.addView(tool("◐", "Effects", false));
+        tools.addView(tool("↗", "Fade", false));
         tools.addView(tool("♫", "Audio", false));
         tools.addView(tool("▧", "Overlay", false));
         scroll.addView(tools);
@@ -503,6 +545,8 @@ public final class MainActivity extends Activity {
                 splitSelectedAtPlayhead();
             } else if ("Effects".equals(name)) {
                 showEffectsDialog();
+            } else if ("Fade".equals(name)) {
+                showFadeDialog();
             } else if ("Audio".equals(name)) {
                 openMediaPicker();
             } else {
