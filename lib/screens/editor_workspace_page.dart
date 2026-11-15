@@ -790,10 +790,14 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                           icon: Icons.title_rounded,
                           label: 'Text',
                         ),
-                        _PlaceholderToolIcon(
-                          icon: Icons.auto_awesome_rounded,
-                          label: 'Effects',
-                        ),
+                        Column(mainAxisSize: MainAxisSize.min, children: [
+                          IconButton(onPressed: _showEffectsDialog, icon: const Icon(Icons.auto_awesome_rounded)),
+                          const Text('Effects', style: TextStyle(fontSize: 10, color: Colors.white54)),
+                        ]),
+                        Column(mainAxisSize: MainAxisSize.min, children: [
+                          IconButton(onPressed: _showFadeDialog, icon: const Icon(Icons.gradient_rounded)),
+                          const Text('Fade', style: TextStyle(fontSize: 10, color: Colors.white54)),
+                        ]),
                         _PlaceholderToolIcon(
                           icon: Icons.sticky_note_2_outlined,
                           label: 'Stickers',
@@ -1041,6 +1045,10 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                     ]),
                     const Text('Overlay controls currently affect preview placement/timing settings. Full compositing into the exported timeline remains future work.', style: TextStyle(color: Colors.white54, fontSize: 10)),
                   ],
+                  const SizedBox(height: 14),
+                  const Text('FADE TRANSITIONS', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                  Row(children: [const SizedBox(width: 72, child: Text('Fade in')), Expanded(child: Slider(value: _fadeInMs.toDouble(), min: 0, max: 3000, divisions: 30, onChanged: (v) => setState(() => _fadeInMs = v.round()))), Text('${_fadeInMs}ms')]),
+                  Row(children: [const SizedBox(width: 72, child: Text('Fade out')), Expanded(child: Slider(value: _fadeOutMs.toDouble(), min: 0, max: 3000, divisions: 30, onChanged: (v) => setState(() => _fadeOutMs = v.round()))), Text('${_fadeOutMs}ms')]),
                   const SizedBox(height: 14),
                   const Text('TRIM CLIP',
                       style: TextStyle(
