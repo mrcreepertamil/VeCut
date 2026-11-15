@@ -1,18 +1,24 @@
-# Dart / Flutter
-.dart_tool/
-.packages
-.pub/
+# CMake
 build/
-.flutter-plugins
-.flutter-plugins-dependencies
-.metadata
+build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+Makefile
+*.user
+*.suo
+
+# Qt Creator
+.qtcreator/
+*.pro.user
+*.pro.user.*
 
 # IDE files
 .idea/
 .vscode/
-*.iml
 
-# Platform build outputs
-android/.gradle/
-android/local.properties
-windows/flutter/ephemeral/
+# Android Gradle prototype build outputs
+native-android/.gradle/
+native-android/local.properties
+native-android/**/build/
