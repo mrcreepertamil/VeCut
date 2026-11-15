@@ -79,8 +79,15 @@ public final class CodecVideoPlayer {
             try (android.content.res.AssetFileDescriptor afd =
                          resolver.openAssetFileDescriptor(uri, "r")) {
                 if (afd == null) throw new IOException("Could not open selected video.");
-                extractor.setDataSource(afd.getFileDescriptor(),
-                        afd.getStartOffset(), afd.getLength());
+                long sourceLength = afd.getLength();
+                if (sourceLength >= 0) {
+                    extractor.setDataSource(afd.getFileDescriptor(),
+                            afd.getStartOffset(), sourceLength);
+                } else if (afd.getStartOffset() == 0) {
+                    extractor.setDataSource(afd.getFileDescriptor());
+                } else {
+                    throw new IOException("This document provider does not expose the video length.");
+                }
             }
 
             int videoTrack = -1;
