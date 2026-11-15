@@ -33,6 +33,38 @@ bool Timeline::trim_clip(int id, int64_t source_in_ms, int64_t source_out_ms) {
     return true;
 }
 
+bool Timeline::set_transition(int id, int type, int64_t duration_ms) {
+    if (type < 0 || type > 6 || duration_ms < 0 || duration_ms > 10000) return false;
+    std::lock_guard<std::mutex> lock(mutex_);
+    const auto it = std::find_if(clips_.begin(), clips_.end(),
+        [id](const TimelineClip& clip) { return clip.id == id; });
+    if (it == clips_.end()) return false;
+    if (type == 0) {
+        it->transition_type = 0;
+        it->transition_duration_ms = 0;
+    } else {
+        if (duration_ms < 100) return false;
+        if (it->source_out_ms >= 0 &&
+            duration_ms > (it->source_out_ms - it->source_in_ms)) return false;
+        it->transition_type = type;
+        it->transition_duration_ms = duration_ms;
+    }
+    return true;
+}
+
+bool Timeline::get_clip_settings(int id, int64_t* source_in_ms, int64_t* source_out_ms,
+                                 int* transition_type, int64_t* transition_duration_ms) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    const auto it = std::find_if(clips_.begin(), clips_.end(),
+        [id](const TimelineClip& clip) { return clip.id == id; });
+    if (it == clips_.end()) return false;
+    if (source_in_ms) *source_in_ms = it->source_in_ms;
+    if (source_out_ms) *source_out_ms = it->source_out_ms;
+    if (transition_type) *transition_type = it->transition_type;
+    if (transition_duration_ms) *transition_duration_ms = it->transition_duration_ms;
+    return true;
+}
+
 bool Timeline::set_clip_duration(int id, int64_t duration_ms) {
     if (duration_ms <= 0) return false;
     std::lock_guard<std::mutex> lock(mutex_);
@@ -106,6 +138,11 @@ std::string Timeline::summary() const {
             timeline_position_ms += duration;
         } else {
             output << "  [duration unknown]";
+        }
+        if (clip.transition_type > 0) {
+            static const char* names[] = {"None", "Fade", "Dissolve", "Wipe L-R", "Wipe R-L", "Slide L-R", "Slide R-L"};
+            output << "  {transition=" << names[clip.transition_type]
+                   << ", " << clip.transition_duration_ms << " ms}";
         }
     }
     output << "\nTotal known duration: " << timeline_position_ms << " ms";
