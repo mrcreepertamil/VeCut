@@ -1,5 +1,7 @@
 #include "main_window.h"
-#include "media_probe.h"\n#include "gpu_preview_widget.h"\n#include "preview_shader_library.h"
+#include "media_probe.h"
+#include "gpu_preview_widget.h"
+#include "preview_shader_library.h"
 
 #include <QFileDialog>
 #include <QFile>
@@ -484,6 +486,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
                                   "color:#a4a8b5;font-size:15px;");
     preview_stack_ = new QStackedWidget(preview_panel);
     preview_stack_->addWidget(preview_label_);
+    gpu_preview_ = new GpuPreviewWidget(preview_panel);
+    preview_stack_->addWidget(gpu_preview_);
     preview_layout->addWidget(preview_stack_, 1);
 
     auto* preview_controls = new QHBoxLayout();
@@ -493,7 +497,21 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     preview_seek_->setRange(0, 0);
     preview_controls->addWidget(preview_play_button_);
     preview_controls->addWidget(preview_seek_, 1);
+    preview_filter_ = new QComboBox(preview_panel);
+    preview_filter_->addItem("Normal", static_cast<int>(vecut::PreviewFilterMode::Normal));
+    preview_filter_->addItem("Monochrome", static_cast<int>(vecut::PreviewFilterMode::Monochrome));
+    preview_filter_->addItem("Warm", static_cast<int>(vecut::PreviewFilterMode::Warm));
+    preview_filter_->addItem("Cool", static_cast<int>(vecut::PreviewFilterMode::Cool));
+    preview_filter_->addItem("Sepia", static_cast<int>(vecut::PreviewFilterMode::Sepia));
+    preview_filter_->addItem("Vintage", static_cast<int>(vecut::PreviewFilterMode::Vintage));
+    preview_filter_->addItem("Invert", static_cast<int>(vecut::PreviewFilterMode::Invert));
+    preview_filter_->addItem("Contrast", static_cast<int>(vecut::PreviewFilterMode::Contrast));
+    preview_controls->addWidget(preview_filter_);
     preview_layout->addLayout(preview_controls);
+    connect(preview_filter_, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int index) {
+        if (gpu_preview_) gpu_preview_->set_filter(
+            static_cast<vecut::PreviewFilterMode>(preview_filter_->itemData(index).toInt()));
+    });
 
     video_preview_ = new VideoPreview(this);
     audio_preview_ = new AudioPreview(this);
