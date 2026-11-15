@@ -81,6 +81,12 @@ int main() {
                                   Transition{TransitionKind::Fade, 500}));
     assert(!project.set_transition("video-1", "clip-1",
                                    Transition{TransitionKind::Fade, 5000}));
+    assert(project.set_clip_animation("video-1", "clip-1", ClipAnimation{AnimationKind::ZoomIn, 800}));
+    assert(!project.set_clip_animation("video-1", "clip-1", ClipAnimation{AnimationKind::ZoomOut, 9000}));
+    assert(project.set_clip_fades("video-1", "clip-1", 300, 450));
+    assert(project.tracks().front().clips.front().fade_in_ms == 300);
+    assert(project.tracks().front().clips.front().fade_out_ms == 450);
+    assert(!project.set_clip_fades("video-1", "clip-1", 5000, 0));
 
     const auto right_id = project.split_clip("video-1", "clip-1", 2000);
     assert(right_id.has_value());
@@ -115,6 +121,10 @@ int main() {
     still_track.id = "still-video";
     still_track.kind = TrackKind::Video;
     assert(still_project.add_track(still_track));
+    Track overlay_track;
+    overlay_track.id = "overlay-1";
+    overlay_track.kind = TrackKind::Overlay;
+    assert(still_project.add_track(overlay_track));
 
     Clip still_clip;
     still_clip.id = "still-clip";
@@ -122,6 +132,12 @@ int main() {
     still_clip.source_in_ms = 0;
     still_clip.source_out_ms = 5000;
     assert(still_project.add_clip("still-video", still_clip));
+    assert(still_project.set_clip_animation("still-video", "still-clip", ClipAnimation{AnimationKind::PanLeft, 1000}));
+    assert(still_project.set_clip_fades("still-video", "still-clip", 250, 250));
+    Clip overlay_clip = still_clip;
+    overlay_clip.id = "overlay-clip";
+    assert(still_project.add_clip("overlay-1", overlay_clip));
+    assert(still_project.set_clip_animation("overlay-1", "overlay-clip", ClipAnimation{AnimationKind::RotateClockwise, 700}));
 
     // Track/media compatibility is enforced by the engine, not only the UI.
     Track audio_track;
