@@ -33,7 +33,7 @@ private:
     void apply_responsive_layout();
     void import_media();
     void add_track(vecut::TrackKind kind);
-    void update_media_details();
+    void update_media_details(bool reload_preview = true);
     void load_preview_media(const QString& media_id);
     void probe_media(const QString& media_id, const QString& path, vecut::MediaKind kind);
     void refresh_media_item(const QString& media_id);
