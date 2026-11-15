@@ -42,6 +42,7 @@ public final class MainActivity extends Activity {
     private TextView mediaHint;
     private TextView projectTitle;
     private ImageView previewImage;
+    private GlVideoPreview videoPreview;
     private View emptyPreview;
     private TextView selectedClip;
     private LinearLayout videoTrackContent;
@@ -62,6 +63,7 @@ public final class MainActivity extends Activity {
         getWindow().setNavigationBarColor(BG);
         getWindow().getDecorView().setSystemUiVisibility(0);
 
+        AppContextHolder.initialize(getApplicationContext());
         mediaEngine = new NativeMediaEngine();
         engineStatus = mediaEngine.initialize();
         pluginHost = new PluginHost(this);
@@ -134,11 +136,9 @@ public final class MainActivity extends Activity {
         frame.setBackground(round(Color.BLACK, 16));
         frame.setClipToOutline(true);
 
-        GLSurfaceView glView = new GLSurfaceView(this);
-        int glVersion = supportsEs3() ? 3 : 2;
-        glView.setEGLContextClientVersion(glVersion);
-        glView.setRenderer(new PreviewRenderer());
-        glView.setRenderMode(GLSurfaceView.RENDERMODE_CONTINUOUSLY);
+        int glVersion = 2;
+        videoPreview = new GlVideoPreview(this);
+        GLSurfaceView glView = videoPreview.getView();
         frame.addView(glView, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
@@ -192,9 +192,13 @@ public final class MainActivity extends Activity {
         playButton = action("▶", PANEL_ALT, TEXT);
         playButton.setGravity(Gravity.CENTER);
         playButton.setOnClickListener(v -> {
-            playing = !playing;
+            if (videoPreview == null || !videoPreview.hasVideo()) {
+                toast("Import a video to start playback.");
+                return;
+            }
+            videoPreview.togglePlayback();
+            playing = videoPreview.isPlaying();
             playButton.setText(playing ? "Ⅱ" : "▶");
-            toast(playing ? "Preview playback is not connected yet." : "Preview paused.");
         });
         row.addView(playButton, new LinearLayout.LayoutParams(dp(42), dp(36)));
 
@@ -447,7 +451,11 @@ public final class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     if (isFinishing() || isDestroyed()) return;
                     addClipToTrack(clipId, source.displayName, source.mimeType, info, source.uri);
-                    showPreviewFrame(frame);
+                    if (source.mimeType != null && source.mimeType.startsWith("video/")) {
+                        showVideoPreview(uri);
+                    } else if (frame != null) {
+                        showPreviewFrame(frame);
+                    }
                     mediaHint.setText("Project media restored");
                 });
             }
@@ -498,7 +506,11 @@ public final class MainActivity extends Activity {
                 mediaHint.setText("Imported: " + displayName);
                 ProjectStore.add(getApplicationContext(), uri.toString(), mimeType, displayName);
                 addClipToTrack(clipId, displayName, mimeType, info, uri.toString());
-                showPreviewFrame(frame);
+                if (mimeType != null && mimeType.startsWith("video/")) {
+                    showVideoPreview(uri);
+                } else if (frame != null) {
+                    showPreviewFrame(frame);
+                }
                 toast("Imported media · Clip #" + clipId);
             });
         });
@@ -527,14 +539,43 @@ public final class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         mediaExecutor.shutdown();
+        if (videoPreview != null) videoPreview.release();
         super.onDestroy();
     }
 
     private void showPreviewFrame(Bitmap bitmap) {
         if (bitmap == null || previewImage == null) return;
+        if (videoPreview != null) {
+            videoPreview.clearVideo();
+            videoPreview.getView().setVisibility(View.GONE);
+        }
         previewImage.setImageBitmap(bitmap);
         previewImage.setVisibility(View.VISIBLE);
         if (emptyPreview != null) emptyPreview.setVisibility(View.GONE);
+        if (playButton != null) playButton.setText("▶");
+        playing = false;
+    }
+
+    private void showVideoPreview(Uri uri) {
+        if (videoPreview == null || uri == null) return;
+        previewImage.setVisibility(View.GONE);
+        if (emptyPreview != null) emptyPreview.setVisibility(View.GONE);
+        videoPreview.getView().setVisibility(View.VISIBLE);
+        videoPreview.setVideo(uri);
+        if (playButton != null) playButton.setText("Ⅱ");
+        playing = true;
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (videoPreview != null) videoPreview.onResume();
+    }
+
+    @Override
+    protected void onPause() {
+        if (videoPreview != null) videoPreview.onPause();
+        super.onPause();
     }
 
     private boolean supportsEs3() {
