@@ -46,7 +46,7 @@ public final class MediaProbe {
             // Some document providers expose sources that cannot be inspected.
         } finally {
             try { retriever.release(); }
-            catch (RuntimeException ignored) { /* Best-effort release. */ }
+            catch (Exception ignored) { /* Best-effort release, including platform IO failures. */ }
         }
         if (rotation == 90 || rotation == 270) {
             int swap = width;
