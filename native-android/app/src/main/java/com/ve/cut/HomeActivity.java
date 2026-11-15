@@ -1,6 +1,7 @@
 package com.ve.cut;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -10,6 +11,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
+import android.widget.EditText;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -53,8 +55,7 @@ public final class HomeActivity extends Activity {
         settings.setGravity(Gravity.CENTER);
         settings.setBackground(round(PANEL, 12));
         top.addView(settings, new LinearLayout.LayoutParams(dp(42), dp(42)));
-        settings.setOnClickListener(v -> android.widget.Toast.makeText(this,
-                "Settings are coming soon.", android.widget.Toast.LENGTH_SHORT).show());
+        settings.setOnClickListener(v -> showProjectSettings());
         page.addView(top);
 
         ScrollView scroll = new ScrollView(this);
@@ -102,7 +103,7 @@ public final class HomeActivity extends Activity {
         LinearLayout details = new LinearLayout(this);
         details.setOrientation(LinearLayout.VERTICAL);
         details.setPadding(dp(12), 0, 0, 0);
-        details.addView(text("Untitled project", 14, TEXT, true));
+        details.addView(text(ProjectStore.getProjectName(getApplicationContext()), 14, TEXT, true));
         details.addView(text(sources.isEmpty() ? "No imported media yet"
                 : sources.size() + " media item(s) saved", 11, MUTED, false));
         recent.addView(details, new LinearLayout.LayoutParams(0, -2, 1f));
@@ -138,6 +139,41 @@ public final class HomeActivity extends Activity {
         card.setLayoutParams(p);
         card.setOnClickListener(v -> openEditor());
         return card;
+    }
+
+
+    private void showProjectSettings() {
+        String[] actions = {"Rename current project", "Clear imported media"};
+        new AlertDialog.Builder(this).setTitle("VeCut settings")
+                .setItems(actions, (dialog, which) -> {
+                    if (which == 0) {
+                        EditText input = new EditText(this);
+                        input.setSingleLine(true);
+                        input.setText(ProjectStore.getProjectName(getApplicationContext()));
+                        input.setSelection(input.getText().length());
+                        new AlertDialog.Builder(this).setTitle("Project name")
+                                .setView(input).setNegativeButton("Cancel", null)
+                                .setPositiveButton("Save", (d, w) -> {
+                                    String name = input.getText().toString().trim();
+                                    if (name.isEmpty()) {
+                                        android.widget.Toast.makeText(this,
+                                                "Project name cannot be empty.",
+                                                android.widget.Toast.LENGTH_SHORT).show();
+                                        return;
+                                    }
+                                    ProjectStore.setProjectName(getApplicationContext(), name);
+                                    setContentView(buildHome());
+                                }).show();
+                    } else if (which == 1) {
+                        new AlertDialog.Builder(this).setTitle("Clear imported media?")
+                                .setMessage("This removes the saved media list for this project. It cannot be undone.")
+                                .setNegativeButton("Cancel", null)
+                                .setPositiveButton("Clear", (d, w) -> {
+                                    ProjectStore.clear(getApplicationContext());
+                                    setContentView(buildHome());
+                                }).show();
+                    }
+                }).show();
     }
 
     private void openEditor() {
