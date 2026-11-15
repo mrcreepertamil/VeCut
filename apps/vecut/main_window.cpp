@@ -29,7 +29,9 @@
 #include <QImageReader>
 #include <QMediaPlayer>
 #include <QAudioOutput>
-#include <QVideoWidget>
+#include <QVideoSink>
+#include <QVideoFrame>
+#include <QTransform>
 #include <QStackedWidget>
 #include <QSlider>
 #include <QPixmap>
@@ -480,10 +482,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     preview_label_->setStyleSheet("background:#090a0e;border:1px solid #303440;border-radius:12px;"
                                   "color:#a4a8b5;font-size:15px;");
     preview_stack_ = new QStackedWidget(preview_panel);
-    video_preview_ = new QVideoWidget(preview_stack_);
-    video_preview_->setMinimumSize(0, 0);
     preview_stack_->addWidget(preview_label_);
-    preview_stack_->addWidget(video_preview_);
     preview_layout->addWidget(preview_stack_, 1);
 
     auto* preview_controls = new QHBoxLayout();
@@ -498,7 +497,16 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     preview_audio_ = new QAudioOutput(this);
     preview_player_ = new QMediaPlayer(this);
     preview_player_->setAudioOutput(preview_audio_);
-    preview_player_->setVideoOutput(video_preview_);
+    preview_video_sink_ = new QVideoSink(this);
+    preview_player_->setVideoSink(preview_video_sink_);
+    connect(preview_video_sink_, &QVideoSink::videoFrameChanged, this,
+            [this](const QVideoFrame& frame) {
+        const QImage image = frame.toImage();
+        if (!image.isNull()) {
+            current_preview_frame_ = image;
+            render_preview_frame();
+        }
+    });
     connect(preview_play_button_, &QPushButton::clicked, this, [this] {
         if (!preview_player_ || preview_player_->source().isEmpty()) return;
         if (preview_player_->playbackState() == QMediaPlayer::PlayingState)
@@ -517,12 +525,15 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     connect(preview_player_, &QMediaPlayer::positionChanged, this, [this](qint64 position) {
         if (!preview_seek_->isSliderDown())
             preview_seek_->setValue(static_cast<int>(position));
+        render_preview_frame();
     });
     connect(preview_seek_, &QSlider::sliderMoved, this, [this](int position) {
         preview_player_->setPosition(position);
     });
     connect(preview_player_, &QMediaPlayer::errorOccurred, this,
             [this](QMediaPlayer::Error, const QString& error) {
+        current_preview_frame_ = QImage();
+        preview_label_->setPixmap(QPixmap());
         preview_label_->setText(QString("Preview could not play this file\n%1").arg(error));
         preview_stack_->setCurrentWidget(preview_label_);
         status_label_->setText("Preview playback error.");
@@ -780,6 +791,8 @@ void MainWindow::update_media_details(bool reload_preview) {
     const auto* item = media_list_->currentItem();
     if (!item) {
         media_details_->setText("No media selected");
+        current_preview_frame_ = QImage();
+        preview_label_->setPixmap(QPixmap());
         preview_label_->setText("Your preview will appear here\n\nImport media to begin");
         return;
     }
@@ -821,10 +834,13 @@ void MainWindow::load_preview_media(const QString& media_id) {
 
     if (found->kind == vecut::MediaKind::Video) {
         preview_label_->setText("Loading video preview…");
-        preview_stack_->setCurrentWidget(video_preview_);
+        current_preview_frame_ = QImage();
+        preview_stack_->setCurrentWidget(preview_label_);
         preview_player_->setSource(QUrl::fromLocalFile(
             QString::fromStdString(found->uri)));
     } else if (found->kind == vecut::MediaKind::Audio) {
+        current_preview_frame_ = QImage();
+        preview_label_->setPixmap(QPixmap());
         preview_label_->setText(QString("AUDIO PREVIEW\n\n%1")
             .arg(QString::fromStdString(found->display_name)));
         preview_stack_->setCurrentWidget(preview_label_);
@@ -835,15 +851,142 @@ void MainWindow::load_preview_media(const QString& media_id) {
         QImageReader reader(QString::fromStdString(found->uri));
         const QImage image = reader.read();
         if (!image.isNull()) {
-            preview_label_->setPixmap(QPixmap::fromImage(image).scaled(
-                preview_label_->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+            current_preview_frame_ = image;
             preview_label_->setText(QString());
+            render_preview_frame();
         } else {
+            current_preview_frame_ = QImage();
             preview_label_->setPixmap(QPixmap());
             preview_label_->setText("Could not load image preview.");
         }
         preview_stack_->setCurrentWidget(preview_label_);
     }
+}
+
+void MainWindow::render_preview_frame() {
+    if (current_preview_frame_.isNull() || !preview_label_) return;
+
+    QSize target = preview_label_->contentsRect().size();
+    if (target.width() < 2 || target.height() < 2)
+        target = QSize(640, 360);
+    QImage canvas(target, QImage::Format_ARGB32_Premultiplied);
+    canvas.fill(Qt::black);
+
+    const QImage fitted = current_preview_frame_.scaled(
+        target, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    const QString track_id = selected_track_id_;
+    const QString clip_id = selected_clip_id_;
+    const vecut::Clip* selected_clip = nullptr;
+    const vecut::Track* selected_track = nullptr;
+    if (!track_id.isEmpty() && !clip_id.isEmpty()) {
+        const auto track = std::find_if(project_.tracks().begin(), project_.tracks().end(),
+            [&](const vecut::Track& item) {
+                return QString::fromStdString(item.id) == track_id;
+            });
+        if (track != project_.tracks().end()) {
+            selected_track = &*track;
+            const auto clip = std::find_if(track->clips.begin(), track->clips.end(),
+                [&](const vecut::Clip& item) {
+                    return QString::fromStdString(item.id) == clip_id;
+                });
+            if (clip != track->clips.end()) selected_clip = &*clip;
+        }
+    }
+
+    double opacity = 1.0;
+    double reveal = 1.0;
+    double slide = 0.0;
+    double zoom = 1.0;
+    double pan_x = 0.0;
+    double pan_y = 0.0;
+    double rotation = 0.0;
+    if (selected_clip && selected_track &&
+        selected_track->kind != vecut::TrackKind::Audio) {
+        const qint64 source_time = preview_player_ &&
+            preview_player_->source().isEmpty() == false
+            ? preview_player_->position() : selected_clip->source_in_ms;
+        const qint64 clip_elapsed = std::max<qint64>(
+            0, source_time - selected_clip->source_in_ms);
+        const qint64 clip_duration = selected_clip->source_out_ms -
+            selected_clip->source_in_ms;
+        const auto& transition = selected_clip->incoming_transition;
+        if (transition.fade_in_ms > 0)
+            opacity = std::min(opacity, std::clamp(
+                static_cast<double>(clip_elapsed) / transition.fade_in_ms, 0.0, 1.0));
+        if (transition.fade_out_ms > 0)
+            opacity = std::min(opacity, std::clamp(
+                static_cast<double>(clip_duration - clip_elapsed) /
+                    transition.fade_out_ms, 0.0, 1.0));
+
+        const qint64 transition_duration = transition.duration_ms;
+        if (transition_duration > 0 && clip_elapsed < transition_duration) {
+            const double progress = std::clamp(
+                static_cast<double>(clip_elapsed) / transition_duration, 0.0, 1.0);
+            switch (transition.kind) {
+            case vecut::TransitionKind::Fade:
+            case vecut::TransitionKind::Dissolve:
+                opacity = std::min(opacity, progress);
+                break;
+            case vecut::TransitionKind::WipeLeftToRight:
+            case vecut::TransitionKind::WipeRightToLeft:
+                reveal = progress;
+                break;
+            case vecut::TransitionKind::SlideLeftToRight:
+                slide = (1.0 - progress) * target.width();
+                break;
+            case vecut::TransitionKind::SlideRightToLeft:
+                slide = -(1.0 - progress) * target.width();
+                break;
+            case vecut::TransitionKind::None:
+                break;
+            }
+        }
+
+        const auto& animation = selected_clip->animation;
+        if (animation.kind != vecut::AnimationKind::None &&
+            animation.duration_ms > 0) {
+            const double p = std::clamp(
+                static_cast<double>(clip_elapsed) / animation.duration_ms, 0.0, 1.0);
+            switch (animation.kind) {
+            case vecut::AnimationKind::ZoomIn: zoom = 1.0 + 0.35 * p; break;
+            case vecut::AnimationKind::ZoomOut: zoom = 1.35 - 0.35 * p; break;
+            case vecut::AnimationKind::PanLeft: pan_x = -0.22 * p; break;
+            case vecut::AnimationKind::PanRight: pan_x = 0.22 * p; break;
+            case vecut::AnimationKind::PanUp: pan_y = -0.22 * p; break;
+            case vecut::AnimationKind::PanDown: pan_y = 0.22 * p; break;
+            case vecut::AnimationKind::RotateClockwise: rotation = 12.0 * p; break;
+            case vecut::AnimationKind::RotateCounterClockwise: rotation = -12.0 * p; break;
+            case vecut::AnimationKind::None: break;
+            }
+        }
+    }
+
+    QPainter painter(&canvas);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    painter.setOpacity(opacity);
+    if (selected_clip && selected_clip->incoming_transition.kind ==
+            vecut::TransitionKind::WipeLeftToRight && reveal < 1.0)
+        painter.setClipRect(QRect(0, 0, static_cast<int>(target.width() * reveal),
+                                  target.height()));
+    else if (selected_clip && selected_clip->incoming_transition.kind ==
+                 vecut::TransitionKind::WipeRightToLeft && reveal < 1.0)
+        painter.setClipRect(QRect(target.width() - static_cast<int>(target.width() * reveal),
+                                  0, static_cast<int>(target.width() * reveal),
+                                  target.height()));
+
+    const QPointF center(target.width() / 2.0 + pan_x * target.width() + slide,
+                         target.height() / 2.0 + pan_y * target.height());
+    painter.translate(center);
+    painter.rotate(rotation);
+    painter.scale(zoom, zoom);
+    painter.translate(-fitted.width() / 2.0, -fitted.height() / 2.0);
+    painter.drawImage(QPoint(0, 0), fitted);
+    painter.end();
+
+    preview_label_->setPixmap(QPixmap::fromImage(canvas).scaled(
+        preview_label_->contentsRect().size(), Qt::KeepAspectRatio,
+        Qt::SmoothTransformation));
+    preview_label_->setText(QString());
 }
 
 void MainWindow::probe_media(const QString& media_id, const QString& path,
