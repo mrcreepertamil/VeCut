@@ -171,7 +171,9 @@ public final class GlVideoPreview {
     }
 
     private void startDecoder(android.net.Uri uri, long seekPositionMs) {
-        main.post(() -> view.setAlpha(fadeInEnabled ? 0f : 1f));
+        main.post(() -> {
+            if (!transitionPending) view.setAlpha(fadeInEnabled ? 0f : 1f);
+        });
         player.play(uri, decoderSurface, new CodecVideoPlayer.Listener() {
             @Override public void onPrepared() {
                 main.post(() -> {
@@ -271,6 +273,7 @@ public final class GlVideoPreview {
                 break;
             case 3:
             case 4: {
+                view.setAlpha(1f);
                 final boolean leftToRight = transitionType == 3;
                 view.setClipBounds(new Rect(leftToRight ? 0 : width, 0,
                         leftToRight ? 0 : width, height));
@@ -292,6 +295,7 @@ public final class GlVideoPreview {
             }
             case 5:
             case 6:
+                view.setAlpha(1f);
                 view.setTranslationX((transitionType == 5 ? 1f : -1f) * width);
                 view.animate().translationX(0f).setDuration(transitionDurationMs).start();
                 break;
