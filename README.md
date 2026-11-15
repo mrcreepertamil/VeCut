@@ -1,59 +1,45 @@
 # VeCut
 
-**VeCut is an in-development video editor.** The project is migrating from Flutter/Dart toward a native Android application built with Java and C++, with JavaScript as the language for third-party community plugins.
+**VeCut is an in-development cross-platform video editor.** The long-term target is one C++17 application and one shared editor experience on Windows, Android, Linux, macOS and iOS.
 
-The goal is to build a capable, performance-focused editor with its own identity and an extensible plugin ecosystem.
+The project is moving away from Flutter/Dart and separate platform-language editor implementations. The application UI and editing engine are being built in C++17. Operating-system APIs may still be used behind narrow integration layers for media codecs, files, windowing, packaging and device capabilities; those layers are not separate editor implementations.
 
 ## Technology direction
 
-- **Java** — native Android application, editor UI, project management, media library, timeline controls, and the JNI boundary.
-- **C++17** — native timeline model and JNI bridge. Android's Java media layer currently handles video decoding; native frame processing, effects, transitions, audio processing, and export remain future work.
-- **OpenGL ES 2.0** — displays decoded video frames through an external `SurfaceTexture` using a GPU shader. Android `MediaCodec` decodes the selected video directly to the preview surface.
-- **JavaScript** — third-party developer plugins through a deliberately limited plugin API.
-- **Android** — first native target. Keep the C++ media engine as platform-independent as practical so future desktop ports remain possible.
+- **C++17** — application UI, project model, timeline, editing operations, effects, transitions, audio graph and render pipeline.
+- **Qt 6 Widgets** — the initial all-C++ cross-platform UI framework. The same UI target is intended to be configured for Windows, Android, Linux, macOS and iOS using the relevant Qt kits/toolchains.
+- **CMake** — shared build configuration and reusable engine target.
+- **Platform media backends** — selected behind C++ interfaces as the engine grows. The existing Android MediaCodec/OpenGL ES preview is transitional and is not yet the cross-platform renderer.
+- **JavaScript plugins** — optional future third-party plugin scripting only; not used to implement the editor or its UI.
 
-Vulkan and a dedicated 4K optimization target are not part of the initial implementation plan.
+## New C++ foundation
 
-## Native Android interface
+- `engine/` contains the platform-independent C++17 project model.
+- The model currently represents media assets, video/audio/overlay tracks, clips, source trim ranges, incoming transitions, clip volume, splitting, clip ordering and project validation.
+- `apps/vecut/` contains the initial Qt Widgets application shell, written entirely in C++.
+- The root `CMakeLists.txt` builds the shared engine and Qt application.
 
-The current native app includes an early editor-style interface:
+This is an architectural foundation, not a finished video editor. Project serialization, media import, real preview, synchronized audio/video playback, effects processing, final rendering/export, undo/redo, and platform packaging still need implementation.
 
-- VeCut top bar and Export control.
-- Preview panel backed by an OpenGL ES external texture and Android `MediaCodec` decoder.
-- Basic video play/pause/replay controls; timeline timecode and seeking are not connected yet.
-- Video and audio track placeholders.
-- Timeline ruler and basic track selection.
-- Tool strip for Media, Trim, Text, Effects, Audio, and Overlay.
-- Android document picker for selecting video, image, and audio files.
-- Basic engine and plugin status labels.
+## Build the C++ application
 
-Video imports can now be decoded with Android `MediaCodec` and displayed through an OpenGL ES `SurfaceTexture` preview. The native C++ timeline stores clip sources, durations, and source trim ranges. The playback path is an early preview implementation: audio playback/mixing, timeline-synchronized multi-clip playback, seeking, frame-accurate editing, effects, transitions, text, overlays, and final export are not implemented yet.
+Install a Qt 6.5+ kit with the Widgets module and a C++17-capable compiler, then configure from the repository root:
 
-## Native migration status
+```sh
+cmake -S . -B build
+cmake --build build --config Release
+```
 
-The native foundation lives in [native-android](native-android/):
+Use the Qt kit and CMake toolchain appropriate to the target platform. Android and iOS builds require their respective Qt platform kits, SDKs and signing/deployment setup; they are not produced by a desktop build.
 
-- Android Studio/Gradle project.
-- Java editor interface and JNI bridge.
-- C++ shared-library target built with CMake.
-- OpenGL ES 2.0 external-texture preview surface fed by an Android `MediaCodec` video decoder.
-- Embedded Rhino JavaScript runtime prototype.
-- Bundled example plugin that registers an effect descriptor.
+## Android transition project
 
-**This is a foundation, not feature parity.** The Android video preview now decodes one selected video stream with `MediaCodec` and renders frames through an OpenGL ES external texture. It does not yet mix audio, sequence multiple timeline clips, support seeking or frame-accurate scrubbing, apply effects, composite overlays, or export a finished video. The C++ layer remains a timeline model and JNI bridge rather than a full render engine. The JavaScript host demonstrates plugin logging and effect registration; public plugin installation, package management, robust isolation, and a stable plugin API are not ready.
+`native-android/` is the existing Android prototype retained during migration. Its Java activity and Android-specific media classes are transitional and have **not** yet been replaced by the C++/Qt application. The Android CMake target now also compiles the shared C++ project model. The existing prototype preview and timeline are not yet feature parity with the cross-platform app.
 
-The native app does not yet provide a complete editing workflow, project persistence, or final video export.
+## Legacy prototype
 
-## Archived Flutter prototype
+The old Flutter/Dart prototype remains in `.oldproto/` as a temporary reference. It is not part of the new C++ application. Do not remove it until its useful features have been ported and verified.
 
-The previous Flutter editor is retained in [.oldproto](.oldproto/) while its features are ported and verified in the native app. It remains a reference for the earlier UI and editing prototype. Keeping it temporarily avoids losing existing work during the migration.
+## Current status
 
-## Build the native Android foundation
-
-Open the [native-android](native-android/) folder in Android Studio with JDK 17, Android SDK 35, Android NDK, and CMake installed. Select the `app` run configuration and build/run on an Android device or emulator.
-
-See [native-android/README.md](native-android/README.md) for details about the plugin API prototype, interface, and current limitations.
-
-## Original Flutter prototype (`.oldproto/`)
-
-The legacy project remains under `.oldproto/` and can still be used as a reference while native feature parity is developed.
+The repository now has the first shared C++17 project model and a C++ Qt UI shell. No cross-platform release builds have been verified yet. Do not treat the five platform targets as completed until each has been built, run and tested on its own toolchain.
