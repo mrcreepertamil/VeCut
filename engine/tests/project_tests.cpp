@@ -108,5 +108,28 @@ int main() {
     still_clip.source_in_ms = 0;
     still_clip.source_out_ms = 5000;
     assert(still_project.add_clip("still-video", still_clip));
+
+    // Track/media compatibility is enforced by the engine, not only the UI.
+    Track audio_track;
+    audio_track.id = "audio-only";
+    audio_track.kind = TrackKind::Audio;
+    assert(still_project.add_track(audio_track));
+    Clip invalid_audio_clip = still_clip;
+    invalid_audio_clip.id = "invalid-audio-track-clip";
+    assert(!still_project.add_clip("audio-only", invalid_audio_clip));
+
+    MediaAsset audio;
+    audio.id = "audio-1";
+    audio.uri = "file:///audio.wav";
+    audio.display_name = "audio.wav";
+    audio.kind = MediaKind::Audio;
+    audio.duration_ms = 3000;
+    assert(still_project.add_media(audio));
+    Clip invalid_video_clip;
+    invalid_video_clip.id = "invalid-video-track-clip";
+    invalid_video_clip.media_id = audio.id;
+    invalid_video_clip.source_out_ms = 1000;
+    assert(!still_project.add_clip("still-video", invalid_video_clip));
+
     return 0;
 }
