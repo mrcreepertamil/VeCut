@@ -43,6 +43,7 @@
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QResizeEvent>
+#include <QTimer>
 #include <QSplitter>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -552,6 +553,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     timeline_toolbar->addWidget(trim_button_);
     timeline_toolbar->addWidget(transition_button_);
     timeline_toolbar->addWidget(volume_button_);
+    timeline_audio_button_ = new QPushButton("Play timeline audio", timeline_panel_);
+    timeline_toolbar->addWidget(timeline_audio_button_);
     timeline_toolbar->addWidget(remove_clip_button_);
     timeline_toolbar->addWidget(add_video_button_);
     timeline_toolbar->addWidget(add_audio_button_);
@@ -638,6 +641,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
             [this] { edit_selected_transition(); });
     connect(volume_button_, &QPushButton::clicked, this,
             [this] { edit_selected_volume(); });
+    connect(timeline_audio_button_, &QPushButton::clicked, this,
+            [this] { toggle_timeline_audio(); });
+    audio_mix_timer_ = new QTimer(this);
+    audio_mix_timer_->setInterval(10);
+    connect(audio_mix_timer_, &QTimer::timeout, this,
+            [this] { update_timeline_audio(); });
     connect(remove_clip_button_, &QPushButton::clicked, this,
             [this] { remove_selected_clip(); });
 
@@ -1391,6 +1400,90 @@ void MainWindow::edit_selected_transition() {
     status_label_->setText("Clip transition saved in the project.");
 }
 
+
+void MainWindow::toggle_timeline_audio() {
+    if (timeline_audio_playing_) {
+        stop_timeline_audio();
+        return;
+    }
+
+    stop_timeline_audio();
+    std::size_t channel_count = 0;
+    for (const auto& track : project_.tracks()) {
+        if (track.kind != vecut::TrackKind::Audio || track.muted) continue;
+        for (const auto& clip : track.clips) {
+            const auto media = std::find_if(project_.media().begin(), project_.media().end(),
+                [&](const vecut::MediaAsset& asset) { return asset.id == clip.media_id; });
+            if (media == project_.media().end() || media->kind != vecut::MediaKind::Audio)
+                continue;
+
+            AudioMixChannel channel;
+            channel.player = new QMediaPlayer(this);
+            channel.output = new QAudioOutput(this);
+            channel.player->setAudioOutput(channel.output);
+            channel.player->setSource(QUrl::fromLocalFile(QString::fromStdString(media->uri)));
+            channel.timeline_start_ms = clip.timeline_start_ms;
+            channel.timeline_end_ms = clip.timeline_start_ms +
+                (clip.source_out_ms - clip.source_in_ms);
+            channel.source_in_ms = clip.source_in_ms;
+            channel.volume = clip.volume;
+            channel.output->setVolume(std::clamp(clip.volume, 0.0, 1.0));
+            audio_mix_channels_.push_back(channel);
+            ++channel_count;
+        }
+    }
+
+    if (channel_count == 0) {
+        status_label_->setText("Add audio clips to an unmuted audio track first.");
+        return;
+    }
+
+    timeline_audio_playing_ = true;
+    audio_mix_clock_.start();
+    audio_mix_timer_->start();
+    timeline_audio_button_->setText("Stop timeline audio");
+    status_label_->setText(QString("Playing timeline audio · %1 clip(s) mixed")
+                               .arg(channel_count));
+    update_timeline_audio();
+}
+
+void MainWindow::stop_timeline_audio() {
+    if (audio_mix_timer_) audio_mix_timer_->stop();
+    for (auto& channel : audio_mix_channels_) {
+        if (channel.player) {
+            channel.player->stop();
+            delete channel.player;
+        }
+        if (channel.output) delete channel.output;
+    }
+    audio_mix_channels_.clear();
+    timeline_audio_playing_ = false;
+    if (timeline_audio_button_) timeline_audio_button_->setText("Play timeline audio");
+}
+
+void MainWindow::update_timeline_audio() {
+    if (!timeline_audio_playing_) return;
+    const std::int64_t now_ms = audio_mix_clock_.elapsed();
+    bool any_pending_or_playing = false;
+
+    for (auto& channel : audio_mix_channels_) {
+        if (now_ms >= channel.timeline_end_ms) {
+            if (channel.started && channel.player) channel.player->stop();
+            continue;
+        }
+        any_pending_or_playing = true;
+        if (!channel.started && now_ms >= channel.timeline_start_ms) {
+            channel.started = true;
+            channel.player->setPosition(channel.source_in_ms);
+            channel.player->play();
+        }
+    }
+
+    if (!any_pending_or_playing) {
+        stop_timeline_audio();
+        status_label_->setText("Timeline audio playback finished.");
+    }
+}
 
 void MainWindow::edit_selected_volume() {
     if (selected_track_id_.isEmpty() || selected_clip_id_.isEmpty()) {
