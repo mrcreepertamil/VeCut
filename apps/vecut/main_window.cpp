@@ -559,7 +559,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
                 [this](QMediaPlayer::PlaybackState state) {
             preview_play_button_->setText(state == QMediaPlayer::PlayingState ? "Pause" : "Play");
         });
-        connect(player, &QMediaPlayer::durationChanged, this, [this](qint64 duration) {
+        connect(player, &QMediaPlayer::durationChanged, this,
+                [this, player](qint64 duration) {
+            if (player != preview_player_) return;
             preview_seek_->setRange(0, static_cast<int>(std::min<qint64>(
                 duration, std::numeric_limits<int>::max())));
         });
