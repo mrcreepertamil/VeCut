@@ -143,6 +143,11 @@ public:
         update();
     }
 
+    void selectClip(const QString& clip_id) {
+        selected_clip_id_ = clip_id;
+        update();
+    }
+
     std::function<void(const QString&, const QString&, std::int64_t)> on_media_dropped;
     std::function<void(const QString&, const QString&, std::int64_t,
                        std::int64_t, std::int64_t)> on_clip_edited;
@@ -281,6 +286,8 @@ protected:
         const int row = track_index_at(point.y());
         if (row < 0) {
             selected_clip_id_.clear();
+            drag_mode_ = DragMode::None;
+            if (on_clip_selected) on_clip_selected({}, {});
             update();
             return;
         }
@@ -1256,6 +1263,7 @@ void MainWindow::split_selected_clip() {
         return;
     }
     selected_clip_id_ = QString::fromStdString(*new_id);
+    timeline_widget_->selectClip(selected_clip_id_);
     timeline_widget_->refresh();
     status_label_->setText(QString("Clip split at %1 ms. New clip: %2.")
         .arg(position->value()).arg(selected_clip_id_));
@@ -1391,6 +1399,7 @@ void MainWindow::remove_selected_clip() {
     }
     selected_track_id_.clear();
     selected_clip_id_.clear();
+    timeline_widget_->selectClip({});
     timeline_widget_->refresh();
     status_label_->setText("Clip removed from the timeline. Source media remains in the media bin.");
 }
