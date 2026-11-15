@@ -1,6 +1,7 @@
 #include "timeline.h"
 #include <algorithm>
 #include <sstream>
+#include <utility>
 
 namespace vecut {
 int Timeline::add_clip(const std::string& uri, const std::string& mime_type) {
@@ -10,6 +11,7 @@ int Timeline::add_clip(const std::string& uri, const std::string& mime_type) {
     clips_.push_back(TimelineClip{id, uri, mime_type, 0, -1});
     return id;
 }
+
 bool Timeline::remove_clip(int id) {
     std::lock_guard<std::mutex> lock(mutex_);
     const auto old_size = clips_.size();
@@ -17,39 +19,93 @@ bool Timeline::remove_clip(int id) {
         [id](const TimelineClip& clip) { return clip.id == id; }), clips_.end());
     return clips_.size() != old_size;
 }
+
 bool Timeline::trim_clip(int id, int64_t source_in_ms, int64_t source_out_ms) {
     if (source_in_ms < 0 || source_out_ms <= source_in_ms) return false;
     std::lock_guard<std::mutex> lock(mutex_);
     const auto it = std::find_if(clips_.begin(), clips_.end(),
         [id](const TimelineClip& clip) { return clip.id == id; });
     if (it == clips_.end()) return false;
+    if (it->source_out_ms >= 0 && source_out_ms > it->source_out_ms) return false;
     it->source_in_ms = source_in_ms;
     it->source_out_ms = source_out_ms;
     return true;
 }
+
+bool Timeline::set_clip_duration(int id, int64_t duration_ms) {
+    if (duration_ms <= 0) return false;
+    std::lock_guard<std::mutex> lock(mutex_);
+    const auto it = std::find_if(clips_.begin(), clips_.end(),
+        [id](const TimelineClip& clip) { return clip.id == id; });
+    if (it == clips_.end()) return false;
+    if (it->source_in_ms >= duration_ms) return false;
+    if (it->source_out_ms < 0 || it->source_out_ms > duration_ms) {
+        it->source_out_ms = duration_ms;
+    }
+    return true;
+}
+
+bool Timeline::move_clip(int id, int target_index) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    const auto it = std::find_if(clips_.begin(), clips_.end(),
+        [id](const TimelineClip& clip) { return clip.id == id; });
+    if (it == clips_.end()) return false;
+    if (target_index < 0 || target_index >= static_cast<int>(clips_.size())) return false;
+    const int current_index = static_cast<int>(std::distance(clips_.begin(), it));
+    if (current_index == target_index) return true;
+    TimelineClip moving = *it;
+    clips_.erase(it);
+    clips_.insert(clips_.begin() + target_index, std::move(moving));
+    return true;
+}
+
+int Timeline::split_clip(int id, int64_t split_at_ms) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    const auto it = std::find_if(clips_.begin(), clips_.end(),
+        [id](const TimelineClip& clip) { return clip.id == id; });
+    if (it == clips_.end()) return -1;
+    if (it->source_out_ms < 0 || split_at_ms <= it->source_in_ms ||
+        split_at_ms >= it->source_out_ms) return -1;
+
+    TimelineClip right = *it;
+    right.id = next_id_++;
+    right.source_in_ms = split_at_ms;
+    it->source_out_ms = split_at_ms;
+    const auto insert_at = std::next(it);
+    clips_.insert(insert_at, std::move(right));
+    return clips_[static_cast<std::size_t>(std::distance(clips_.begin(), it) + 1)].id;
+}
+
 void Timeline::clear() {
     std::lock_guard<std::mutex> lock(mutex_);
     clips_.clear();
 }
+
 int Timeline::clip_count() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return static_cast<int>(clips_.size());
 }
+
 std::string Timeline::summary() const {
     std::lock_guard<std::mutex> lock(mutex_);
     std::ostringstream output;
     output << "Timeline · " << clips_.size()
            << (clips_.size() == 1 ? " clip" : " clips");
-    for (const TimelineClip& clip : clips_) {
-        output << "\n#" << clip.id << "  "
+    int64_t timeline_position_ms = 0;
+    for (std::size_t index = 0; index < clips_.size(); ++index) {
+        const TimelineClip& clip = clips_[index];
+        output << "\n" << index << ". #" << clip.id << "  "
                << (clip.mime_type.empty() ? "unknown media" : clip.mime_type);
-        if (clip.source_in_ms > 0 || clip.source_out_ms >= 0) {
-            output << "  [" << clip.source_in_ms << "–";
-            if (clip.source_out_ms < 0) output << "end";
-            else output << clip.source_out_ms;
-            output << " ms]";
+        if (clip.source_out_ms >= 0) {
+            const int64_t duration = clip.source_out_ms - clip.source_in_ms;
+            output << "  [" << clip.source_in_ms << "–"
+                   << clip.source_out_ms << " ms; " << duration << " ms]";
+            timeline_position_ms += duration;
+        } else {
+            output << "  [duration unknown]";
         }
     }
+    output << "\nTotal known duration: " << timeline_position_ms << " ms";
     return output.str();
 }
 }  // namespace vecut
