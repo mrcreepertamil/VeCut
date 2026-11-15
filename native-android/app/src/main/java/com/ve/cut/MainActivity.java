@@ -52,6 +52,10 @@ public final class MainActivity extends Activity {
     private final ExecutorService mediaExecutor = Executors.newSingleThreadExecutor();
     private int selectedClipId = -1;
     private long selectedClipDurationMs = 0;
+    private String selectedClipSourceUri;
+    private String selectedClipMimeType;
+    private String selectedClipName;
+    private MediaProbe.Info selectedClipInfo;
     private TextView playButton;
     private SeekBar previewSeekBar;
     private long previewDurationMs;
@@ -341,6 +345,10 @@ public final class MainActivity extends Activity {
         chip.setOnClickListener(v -> {
             selectedClipId = clipId;
             selectedClipDurationMs = info.durationMs;
+            selectedClipSourceUri = sourceUri;
+            selectedClipMimeType = mimeType;
+            selectedClipName = title;
+            selectedClipInfo = info;
             selectedClip.setText("Selected #" + clipId + " · " + title
                     + " · " + dimensions + " · " + duration);
             if (mimeType != null && mimeType.startsWith("video/")) {
@@ -351,6 +359,10 @@ public final class MainActivity extends Activity {
         });
         selectedClipId = clipId;
         selectedClipDurationMs = info.durationMs;
+        selectedClipSourceUri = sourceUri;
+        selectedClipMimeType = mimeType;
+        selectedClipName = title;
+        selectedClipInfo = info;
         chip.setOnLongClickListener(v -> {
             new AlertDialog.Builder(this).setTitle("Remove clip?")
                     .setMessage("Remove " + title + " from this timeline?")
@@ -369,6 +381,32 @@ public final class MainActivity extends Activity {
                     }).show();
             return true;
         });
+    }
+
+    private void splitSelectedAtPlayhead() {
+        if (selectedClipId < 0 || selectedClipInfo == null || selectedClipSourceUri == null) {
+            toast("Select a timeline clip first.");
+            return;
+        }
+        if (previewSeekBar == null || selectedClipDurationMs <= 0) {
+            toast("This clip has no known duration.");
+            return;
+        }
+        long splitAtMs = previewSeekBar.getProgress();
+        if (splitAtMs <= 0 || splitAtMs >= selectedClipDurationMs) {
+            toast("Move the playhead inside the selected clip before splitting.");
+            return;
+        }
+        int newClipId = mediaEngine.splitClip(selectedClipId, splitAtMs);
+        if (newClipId < 0) {
+            toast("Could not split this clip at that position.");
+            return;
+        }
+        addClipToTrack(newClipId, selectedClipName + " (split)",
+                selectedClipMimeType, selectedClipInfo, selectedClipSourceUri);
+        selectedClip.setText("Split clip #" + selectedClipId + " at "
+                + formatTime(splitAtMs) + " · new clip #" + newClipId);
+        toast("Clip split in the native timeline.");
     }
 
     private void showEffectsDialog() {
@@ -436,6 +474,7 @@ public final class MainActivity extends Activity {
         tools.setGravity(Gravity.CENTER_VERTICAL);
         tools.addView(tool("＋", "Media", true));
         tools.addView(tool("✂", "Trim", false));
+        tools.addView(tool("⌁", "Split", false));
         tools.addView(tool("T", "Text", false));
         tools.addView(tool("◐", "Effects", false));
         tools.addView(tool("♫", "Audio", false));
@@ -460,6 +499,8 @@ public final class MainActivity extends Activity {
                 openMediaPicker();
             } else if ("Trim".equals(name)) {
                 showTrimDialog();
+            } else if ("Split".equals(name)) {
+                splitSelectedAtPlayhead();
             } else if ("Effects".equals(name)) {
                 showEffectsDialog();
             } else if ("Audio".equals(name)) {
