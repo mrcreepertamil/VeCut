@@ -1,6 +1,11 @@
 #include "main_window.h"
 
 #include <QFileDialog>
+#include <QDrag>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QMimeData>
+#include <QAbstractItemView>
 #include <QFileInfo>
 #include <QFrame>
 #include <QHBoxLayout>
@@ -21,6 +26,62 @@
 #include <algorithm>
 #include <QStringList>
 #include <utility>
+#include <functional>
+
+
+namespace {
+constexpr auto kMediaMimeType = "application/x-vecut-media-id";
+constexpr std::int64_t kStillImageClipDurationMs = 5000;
+
+class MediaBinListWidget final : public QListWidget {
+public:
+    using QListWidget::QListWidget;
+protected:
+    void startDrag(Qt::DropActions supported_actions) override {
+        auto* item = currentItem();
+        if (!item) return;
+        const QString media_id = item->data(Qt::UserRole).toString();
+        if (media_id.isEmpty()) return;
+        auto* mime = new QMimeData();
+        mime->setData(kMediaMimeType, media_id.toUtf8());
+        auto* drag = new QDrag(this);
+        drag->setMimeData(mime);
+        drag->exec(supported_actions & Qt::CopyAction, Qt::CopyAction);
+    }
+};
+
+class TrackDropListWidget final : public QListWidget {
+public:
+    using QListWidget::QListWidget;
+    std::function<void(const QString&, const QString&)> on_media_dropped;
+protected:
+    void dragEnterEvent(QDragEnterEvent* event) override {
+        if (event->mimeData()->hasFormat(kMediaMimeType)) event->acceptProposedAction();
+        else QListWidget::dragEnterEvent(event);
+    }
+    void dragMoveEvent(QDragMoveEvent* event) override {
+        if (event->mimeData()->hasFormat(kMediaMimeType) && itemAt(event->position().toPoint()))
+            event->acceptProposedAction();
+        else QListWidget::dragMoveEvent(event);
+    }
+    void dropEvent(QDropEvent* event) override {
+        if (!event->mimeData()->hasFormat(kMediaMimeType)) {
+            QListWidget::dropEvent(event);
+            return;
+        }
+        auto* target = itemAt(event->position().toPoint());
+        if (!target) { event->ignore(); return; }
+        const QString media_id = QString::fromUtf8(event->mimeData()->data(kMediaMimeType));
+        const QString track_id = target->data(Qt::UserRole).toString();
+        if (media_id.isEmpty() || track_id.isEmpty() || !on_media_dropped) {
+            event->ignore();
+            return;
+        }
+        on_media_dropped(media_id, track_id);
+        event->acceptProposedAction();
+    }
+};
+}
 
 namespace {
 constexpr int kPortraitBreakpoint = 720;
@@ -99,10 +160,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     media_layout->setContentsMargins(10, 10, 10, 10);
     media_layout->setSpacing(8);
     media_layout->addWidget(make_section_title("MEDIA BIN", media_panel));
-    media_list_ = new QListWidget(media_panel);
+    media_list_ = new MediaBinListWidget(media_panel);
     media_list_->setObjectName("mediaList");
     media_list_->setMinimumWidth(0);
     media_list_->setSpacing(4);
+    media_list_->setDragEnabled(true);
+    media_list_->setDragDropMode(QAbstractItemView::DragOnly);
     media_layout->addWidget(media_list_, 1);
     media_details_ = new QLabel("No media selected", media_panel);
     media_details_->setWordWrap(true);
@@ -143,8 +206,14 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     timeline_toolbar->addWidget(add_audio_button_);
     timeline_layout->addLayout(timeline_toolbar);
 
-    track_list_ = new QListWidget(timeline_panel_);
+    track_list_ = new TrackDropListWidget(timeline_panel_);
     track_list_->setObjectName("trackList");
+    track_list_->setAcceptDrops(true);
+    track_list_->setDragDropMode(QAbstractItemView::DropOnly);
+    static_cast<TrackDropListWidget*>(track_list_)->on_media_dropped =
+        [this](const QString& media_id, const QString& track_id) {
+            add_media_to_track(media_id, track_id);
+        };
     track_list_->setMinimumHeight(0);
     track_list_->setMaximumHeight(180);
     track_list_->addItem("No tracks yet — add a video or audio track");
@@ -382,15 +451,65 @@ void MainWindow::refresh_media_item(const QString& media_id) {
     }
 }
 
+void MainWindow::add_media_to_track(const QString& media_id, const QString& track_id) {
+    const auto media = std::find_if(project_.media().begin(), project_.media().end(),
+        [&](const vecut::MediaAsset& asset) {
+            return QString::fromStdString(asset.id) == media_id;
+        });
+    const auto track = std::find_if(project_.tracks().begin(), project_.tracks().end(),
+        [&](const vecut::Track& item) {
+            return QString::fromStdString(item.id) == track_id;
+        });
+    if (media == project_.media().end() || track == project_.tracks().end()) return;
+
+    const bool is_audio = media->kind == vecut::MediaKind::Audio;
+    if ((is_audio && track->kind != vecut::TrackKind::Audio) ||
+        (!is_audio && track->kind == vecut::TrackKind::Audio)) {
+        status_label_->setText("That media type cannot be dropped on this track.");
+        return;
+    }
+
+    const std::int64_t clip_duration = media->kind == vecut::MediaKind::Image
+        ? kStillImageClipDurationMs : media->duration_ms;
+    if (clip_duration <= 0) {
+        status_label_->setText("Media duration is not ready yet. Try dropping it again shortly.");
+        return;
+    }
+
+    vecut::Clip clip;
+    clip.id = "clip-" + std::to_string(next_clip_id_++);
+    clip.media_id = media->id;
+    clip.source_in_ms = 0;
+    clip.source_out_ms = clip_duration;
+    if (!project_.add_clip(track->id, std::move(clip))) {
+        status_label_->setText("Could not add this media clip.");
+        return;
+    }
+    update_track_list();
+    status_label_->setText(QString("Added %1 to %2.")
+        .arg(QString::fromStdString(media->display_name),
+             QString::fromStdString(track->name)));
+}
+
 void MainWindow::update_track_list() {
     track_list_->clear();
     for (const auto& track : project_.tracks()) {
         const QString kind = track.kind == vecut::TrackKind::Audio ? "AUDIO" : "VIDEO";
+        QStringList clip_names;
+        for (const auto& clip : track.clips) {
+            const auto media = std::find_if(project_.media().begin(), project_.media().end(),
+                [&](const vecut::MediaAsset& asset) { return asset.id == clip.media_id; });
+            if (media != project_.media().end())
+                clip_names.push_back(QString::fromStdString(media->display_name));
+        }
+        const QString clip_summary = clip_names.isEmpty()
+            ? QString("Drop media here") : clip_names.join("  |  ");
         auto* item = new QListWidgetItem(
-            QString("[%1]  %2     ·     %3 clip(s)")
+            QString("[%1]  %2     ·     %3 clip(s)\n%4")
                 .arg(kind, QString::fromStdString(track.name))
-                .arg(track.clips.size()), track_list_);
+                .arg(track.clips.size()).arg(clip_summary), track_list_);
         item->setData(Qt::UserRole, QString::fromStdString(track.id));
+        item->setSizeHint(QSize(item->sizeHint().width(), 58));
     }
     if (project_.tracks().empty()) {
         track_list_->addItem("No tracks yet — add a video or audio track");
