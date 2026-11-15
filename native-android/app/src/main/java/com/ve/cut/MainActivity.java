@@ -63,6 +63,7 @@ public final class MainActivity extends Activity {
     private TextView playButton;
     private SeekBar previewSeekBar;
     private long previewDurationMs;
+    private long previewSourceInMs;
     private boolean playing;
     private NativeMediaEngine mediaEngine;
     private PluginHost pluginHost;
@@ -248,7 +249,8 @@ public final class MainActivity extends Activity {
             @Override public void onStartTrackingTouch(SeekBar seekBar) { }
             @Override public void onStopTrackingTouch(SeekBar seekBar) {
                 if (previewDurationMs > 0 && videoPreview != null && videoPreview.hasVideo()) {
-                    long targetMs = previewDurationMs * seekBar.getProgress() / seekBar.getMax();
+                    long targetMs = previewSourceInMs
+                            + previewDurationMs * seekBar.getProgress() / seekBar.getMax();
                     videoPreview.seekTo(targetMs);
                 }
             }
@@ -537,6 +539,10 @@ public final class MainActivity extends Activity {
                     selectedSourceOutMs = outMs;
                     selectedClip.setText("Clip #" + selectedClipId + " · "
                             + formatTime(inMs) + " – " + formatTime(outMs));
+                    if (selectedClipSourceUri != null && selectedClipMimeType != null
+                            && selectedClipMimeType.startsWith("video/")) {
+                        showVideoPreview(Uri.parse(selectedClipSourceUri));
+                    }
                     toast("Custom trim saved in the C++ timeline.");
                 }).show();
     }
@@ -824,7 +830,9 @@ public final class MainActivity extends Activity {
     private void showVideoPreview(Uri uri) {
         if (videoPreview == null || uri == null) return;
         if (audioPreview != null) audioPreview.release();
-        previewDurationMs = selectedClipDurationMs;
+        previewSourceInMs = Math.max(0, selectedSourceInMs);
+        long effectiveOut = selectedSourceOutMs >= 0 ? selectedSourceOutMs : selectedClipDurationMs;
+        previewDurationMs = Math.max(0, effectiveOut - previewSourceInMs);
         if (previewSeekBar != null) {
             previewSeekBar.setMax((int) Math.max(1, Math.min(Integer.MAX_VALUE, previewDurationMs)));
             previewSeekBar.setProgress(0);
@@ -841,7 +849,7 @@ public final class MainActivity extends Activity {
         }
         if (videoSources.isEmpty()) videoSources.add(uri);
         videoPreview.setTransitionSettings(selectedTransitionType, (int) selectedTransitionDurationMs);
-        videoPreview.setPlaylist(videoSources, uri);
+        videoPreview.setPlaylist(videoSources, uri, previewSourceInMs);
         if (playButton != null) playButton.setText("Ⅱ");
         playing = true;
     }
