@@ -68,7 +68,16 @@ public final class ProjectStore {
         write(context, existing);
     }
 
-    public static synchronized String getProjectName(Context context) {\n        return preferences(context).getString(KEY_PROJECT_NAME, "Untitled project");\n    }\n\n    public static synchronized void setProjectName(Context context, String name) {\n        if (name == null || name.trim().isEmpty()) return;\n        preferences(context).edit().putString(KEY_PROJECT_NAME, name.trim()).apply();\n    }\n\n    public static synchronized void clear(Context context) {
+    public static synchronized String getProjectName(Context context) {
+        return preferences(context).getString(KEY_PROJECT_NAME, "Untitled project");
+    }
+
+    public static synchronized void setProjectName(Context context, String name) {
+        if (name == null || name.trim().isEmpty()) return;
+        preferences(context).edit().putString(KEY_PROJECT_NAME, name.trim()).apply();
+    }
+
+    public static synchronized void clear(Context context) {
         preferences(context).edit().remove(KEY_SOURCES).apply();
     }
 
