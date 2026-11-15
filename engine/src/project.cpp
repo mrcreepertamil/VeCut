@@ -32,6 +32,18 @@ bool Project::add_media(MediaAsset asset) {
     return true;
 }
 
+bool Project::update_media_info(const std::string& media_id, std::int64_t duration_ms,
+                                int width, int height) {
+    if (duration_ms < 0 || width < 0 || height < 0) return false;
+    const auto it = std::find_if(media_.begin(), media_.end(),
+        [&](const MediaAsset& item) { return item.id == media_id; });
+    if (it == media_.end()) return false;
+    it->duration_ms = duration_ms;
+    it->width = width;
+    it->height = height;
+    return true;
+}
+
 bool Project::add_track(Track track) {
     if (track.id.empty()) track.id = make_id(next_id_++);
     if (find_track(track.id)) return false;
