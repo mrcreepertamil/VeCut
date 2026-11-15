@@ -980,11 +980,64 @@ void MainWindow::render_preview_frame() {
             0, source_time - selected_clip->source_in_ms);
     }
 
-    const QImage composed = preview_compositor_.compose(
-        current_preview_frame_, target, selected_clip, clip_elapsed_ms);
-    if (composed.isNull()) return;
+    PreviewGpuEffects effects;
+    if (selected_clip) {
+        const auto& transition = selected_clip->incoming_transition;
+        const qint64 duration = selected_clip->source_out_ms - selected_clip->source_in_ms;
+        if (transition.fade_in_ms > 0)
+            effects.opacity = std::min(effects.opacity, static_cast<float>(
+                std::clamp(static_cast<double>(clip_elapsed_ms) / transition.fade_in_ms, 0.0, 1.0)));
+        if (transition.fade_out_ms > 0)
+            effects.opacity = std::min(effects.opacity, static_cast<float>(
+                std::clamp(static_cast<double>(duration - clip_elapsed_ms) / transition.fade_out_ms, 0.0, 1.0)));
 
-    gpu_preview_->set_frame(composed);
+        if (transition.duration_ms > 0 && clip_elapsed_ms < transition.duration_ms) {
+            const float progress = static_cast<float>(std::clamp(
+                static_cast<double>(clip_elapsed_ms) / transition.duration_ms, 0.0, 1.0));
+            switch (transition.kind) {
+            case vecut::TransitionKind::Fade:
+            case vecut::TransitionKind::Dissolve:
+                effects.opacity = std::min(effects.opacity, progress);
+                break;
+            case vecut::TransitionKind::WipeLeftToRight:
+                effects.reveal = progress;
+                effects.wipe_direction = 1;
+                break;
+            case vecut::TransitionKind::WipeRightToLeft:
+                effects.reveal = progress;
+                effects.wipe_direction = 2;
+                break;
+            case vecut::TransitionKind::SlideLeftToRight:
+                effects.slide = (1.0f - progress);
+                break;
+            case vecut::TransitionKind::SlideRightToLeft:
+                effects.slide = -(1.0f - progress);
+                break;
+            case vecut::TransitionKind::None:
+                break;
+            }
+        }
+
+        const auto& animation = selected_clip->animation;
+        if (animation.kind != vecut::AnimationKind::None && animation.duration_ms > 0) {
+            const float progress = static_cast<float>(std::clamp(
+                static_cast<double>(clip_elapsed_ms) / animation.duration_ms, 0.0, 1.0));
+            switch (animation.kind) {
+            case vecut::AnimationKind::ZoomIn: effects.zoom = 1.0f + 0.35f * progress; break;
+            case vecut::AnimationKind::ZoomOut: effects.zoom = 1.35f - 0.35f * progress; break;
+            case vecut::AnimationKind::PanLeft: effects.pan_x = 0.22f * progress; break;
+            case vecut::AnimationKind::PanRight: effects.pan_x = -0.22f * progress; break;
+            case vecut::AnimationKind::PanUp: effects.pan_y = 0.22f * progress; break;
+            case vecut::AnimationKind::PanDown: effects.pan_y = -0.22f * progress; break;
+            case vecut::AnimationKind::RotateClockwise: effects.rotation_degrees = 12.0f * progress; break;
+            case vecut::AnimationKind::RotateCounterClockwise: effects.rotation_degrees = -12.0f * progress; break;
+            case vecut::AnimationKind::None: break;
+            }
+        }
+    }
+
+    gpu_preview_->set_effects(effects);
+    gpu_preview_->set_frame(current_preview_frame_);
     preview_stack_->setCurrentWidget(gpu_preview_);
 }
 
