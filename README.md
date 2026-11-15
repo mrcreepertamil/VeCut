@@ -27,13 +27,14 @@ The mobile layout is designed for portrait use, but Android/iOS packaging, touch
 - `engine/` contains the platform-independent C++17 project model.
 - The model represents media assets, video/audio/overlay tracks, clips, source trim ranges, incoming transitions, clip volume, splitting, clip ordering and project validation.
 - `apps/vecut/` contains the Qt Widgets application, written entirely in C++.
-- The workspace has a media-bin import dialog, selected-media information, preview placeholder, and controls to create video/audio tracks.
-- Media files are listed in the project, but duration probing, placing clips on tracks, decoding, playback and export are not connected yet. The UI deliberately does not invent media durations.
+- The workspace has a multi-file media import dialog, a media bin, selected-media details, image thumbnails, file-size reporting, and controls to create video/audio tracks.
+- Qt Multimedia asynchronously probes audio/video duration; Qt Image I/O reads still-image dimensions and thumbnails. Unknown durations remain unknown rather than being guessed.
+- Adding imported files as timeline clips, video thumbnails, decoding, playback and export are still separate unfinished features.
 - Engine unit tests cover clip ordering (including moving to the end), trimming, transitions, splitting, validation and removal.
 
 ## Build
 
-To build the desktop application, install a Qt 6.5+ kit with the Widgets module and a C++17-capable compiler:
+To build the desktop application, install a Qt 6.5+ kit with the Widgets and Multimedia modules and a C++17-capable compiler:
 
 ```sh
 cmake -S . -B build
