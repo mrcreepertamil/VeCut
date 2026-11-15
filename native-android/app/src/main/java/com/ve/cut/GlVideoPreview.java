@@ -75,7 +75,7 @@ public final class GlVideoPreview {
         playlist.add(uri);
         playlistIndex = 0;
         lastUri = uri;
-        pending = new UriRequest(uri);
+        pending = new UriRequest(uri, 0);
         main.post(() -> {
             if (decoderSurface != null) startPending();
         });
@@ -83,8 +83,16 @@ public final class GlVideoPreview {
 
     /** Plays imported video clips in the order supplied, beginning at startUri. */
     public void setPlaylist(List<android.net.Uri> uris, android.net.Uri startUri) {
+        setPlaylist(uris, startUri, 0);
+    }
+
+    /** Starts the selected source at its native timeline trim-in position. */
+    public void setPlaylist(List<android.net.Uri> uris, android.net.Uri startUri, long startPositionMs) {
         if (uris == null || uris.isEmpty()) {
-            if (startUri != null) setVideo(startUri);
+            if (startUri != null) {
+                setVideo(startUri);
+                if (startPositionMs > 0) pending = new UriRequest(startUri, startPositionMs);
+            }
             return;
         }
         playlist.clear();
@@ -92,7 +100,7 @@ public final class GlVideoPreview {
         playlistIndex = Math.max(0, playlist.indexOf(startUri));
         lastUri = playlist.get(playlistIndex);
         hasVideo = true;
-        pending = new UriRequest(lastUri);
+        pending = new UriRequest(lastUri, Math.max(0, startPositionMs));
         main.post(() -> {
             if (decoderSurface != null) startPending();
         });
@@ -162,7 +170,7 @@ public final class GlVideoPreview {
         UriRequest request = pending;
         if (request == null || decoderSurface == null) return;
         pending = null;
-        startDecoder(request.uri);
+        startDecoder(request.uri, request.positionMs);
     }
 
     private void startDecoder(android.net.Uri uri) {
@@ -432,7 +440,11 @@ public final class GlVideoPreview {
 
     private static final class UriRequest {
         final android.net.Uri uri;
-        UriRequest(android.net.Uri uri) { this.uri = uri; }
+        final long positionMs;
+        UriRequest(android.net.Uri uri, long positionMs) {
+            this.uri = uri;
+            this.positionMs = Math.max(0, positionMs);
+        }
     }
 
     private static final String VERTEX_SHADER =
