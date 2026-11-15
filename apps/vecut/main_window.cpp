@@ -1458,7 +1458,7 @@ void MainWindow::edit_selected_transition() {
     }
     timeline_widget_->refresh();
     status_label_->setText("Transition, animation and fade settings saved in the project.");
-
+}
 
 void MainWindow::toggle_timeline_audio() {
     if (timeline_audio_playing_) {
