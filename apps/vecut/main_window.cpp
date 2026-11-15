@@ -39,6 +39,7 @@
 #include <QDialog>
 #include <QFormLayout>
 #include <QSpinBox>
+#include <QDoubleSpinBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QResizeEvent>
@@ -541,6 +542,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     split_button_ = new QPushButton("Split", timeline_panel_);
     trim_button_ = new QPushButton("Trim", timeline_panel_);
     transition_button_ = new QPushButton("Transition", timeline_panel_);
+    volume_button_ = new QPushButton("Volume", timeline_panel_);
     remove_clip_button_ = new QPushButton("Remove clip", timeline_panel_);
     add_video_button_ = new QPushButton("+ Video track", timeline_panel_);
     add_audio_button_ = new QPushButton("+ Audio track", timeline_panel_);
@@ -549,6 +551,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     timeline_toolbar->addWidget(split_button_);
     timeline_toolbar->addWidget(trim_button_);
     timeline_toolbar->addWidget(transition_button_);
+    timeline_toolbar->addWidget(volume_button_);
     timeline_toolbar->addWidget(remove_clip_button_);
     timeline_toolbar->addWidget(add_video_button_);
     timeline_toolbar->addWidget(add_audio_button_);
@@ -633,6 +636,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
             [this] { trim_selected_clip(); });
     connect(transition_button_, &QPushButton::clicked, this,
             [this] { edit_selected_transition(); });
+    connect(volume_button_, &QPushButton::clicked, this,
+            [this] { edit_selected_volume(); });
     connect(remove_clip_button_, &QPushButton::clicked, this,
             [this] { remove_selected_clip(); });
 
@@ -1386,6 +1391,49 @@ void MainWindow::edit_selected_transition() {
     status_label_->setText("Clip transition saved in the project.");
 }
 
+
+void MainWindow::edit_selected_volume() {
+    if (selected_track_id_.isEmpty() || selected_clip_id_.isEmpty()) {
+        status_label_->setText("Select a timeline clip before changing its volume.");
+        return;
+    }
+
+    const auto track = std::find_if(project_.tracks().begin(), project_.tracks().end(),
+        [&](const vecut::Track& item) {
+            return QString::fromStdString(item.id) == selected_track_id_;
+        });
+    if (track == project_.tracks().end()) return;
+    const auto clip = std::find_if(track->clips.begin(), track->clips.end(),
+        [&](const vecut::Clip& item) {
+            return QString::fromStdString(item.id) == selected_clip_id_;
+        });
+    if (clip == track->clips.end()) return;
+
+    QDialog dialog(this);
+    dialog.setWindowTitle("Clip volume");
+    auto* layout = new QFormLayout(&dialog);
+    auto* volume = new QDoubleSpinBox(&dialog);
+    volume->setRange(0.0, 4.0);
+    volume->setDecimals(2);
+    volume->setSingleStep(0.05);
+    volume->setSuffix("×");
+    volume->setValue(clip->volume);
+    layout->addRow("Volume gain", volume);
+    auto* buttons = new QDialogButtonBox(
+        QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    layout->addRow(buttons);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    if (dialog.exec() != QDialog::Accepted) return;
+
+    if (!project_.set_clip_volume(selected_track_id_.toStdString(),
+                                  selected_clip_id_.toStdString(), volume->value())) {
+        status_label_->setText("Could not update clip volume.");
+        return;
+    }
+    status_label_->setText(QString("Clip volume set to %1×.")
+                               .arg(volume->value(), 0, 'f', 2));
+}
 
 void MainWindow::remove_selected_clip() {
     if (selected_track_id_.isEmpty() || selected_clip_id_.isEmpty()) {
