@@ -32,6 +32,8 @@ struct Clip {
     std::string media_id;
     std::int64_t source_in_ms = 0;
     std::int64_t source_out_ms = 0;
+    // Position on the project timeline. -1 appends after the track's current end.
+    std::int64_t timeline_start_ms = -1;
     Transition incoming_transition;
     double volume = 1.0;
 };
@@ -71,6 +73,8 @@ public:
                                            std::int64_t split_source_time_ms);
     bool move_clip(const std::string& track_id, const std::string& clip_id,
                    std::size_t target_index);
+    bool move_clip_to_time(const std::string& track_id, const std::string& clip_id,
+                           std::int64_t timeline_start_ms);
 
     std::int64_t duration_ms() const noexcept;
     bool validate(std::string* error = nullptr) const;
