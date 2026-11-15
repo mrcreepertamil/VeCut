@@ -30,8 +30,9 @@ The mobile layout is designed for portrait use, but Android/iOS packaging, touch
 - The workspace has a multi-file media import dialog, a media bin, selected-media details, image thumbnails, file-size reporting, and controls to create video/audio tracks.
 - Qt Multimedia asynchronously probes audio/video duration; Qt Image I/O reads still-image dimensions and thumbnails. Unknown durations remain unknown rather than being guessed.
 - Media-bin items can be dragged onto compatible audio/video tracks at a chosen timeline position. Still images use a five-second default clip duration; video/audio drops wait for duration probing to finish.
+- Projects can be saved and reopened as versioned `.vecut` JSON documents. The C++ Qt editor persists media references and metadata, track settings, clip timing and trims, transitions, and volume; project loading validates the structure before replacing the current project.
 - The timeline renders a time ruler and visual clip blocks on separate track lanes. Drag a clip body horizontally to reposition it; drag either edge to trim the source range. Clip placement and split offsets are stored as timeline milliseconds in the shared C++ project model.
-- Timeline playback, synchronized preview, clip dragging between different tracks, undo/redo and export are still unfinished.
+- Timeline-synchronized preview, clip dragging between different tracks, undo/redo and export are still unfinished.
 - Engine unit tests cover clip ordering (including moving to the end), trimming, transitions, splitting, validation and removal.
 
 ## Build
@@ -59,4 +60,4 @@ Use the Qt kit and CMake toolchain appropriate to the target platform. Android a
 
 ## Current status
 
-The shared C++17 project model, first engine tests, and responsive Qt media-bin/track workspace are in place. The repository's Windows and Android CI workflows target the C++/Qt application; their successful execution and the cross-platform release builds still need to be verified. Do not treat the five platform targets as completed until each has been built, run and tested on its own toolchain.
+The shared C++17 project model, first engine tests, responsive Qt media-bin/track workspace, and initial native C++ project save/load are in place. The repository's Windows and Android CI workflows target the C++/Qt application; their successful execution and the cross-platform release builds still need to be verified. Do not treat the five platform targets as completed until each has been built, run and tested on its own toolchain.
