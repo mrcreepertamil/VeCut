@@ -1,4 +1,5 @@
 #include "timeline.h"
+#include <cstddef>
 #include <algorithm>
 #include <sstream>
 #include <utility>
