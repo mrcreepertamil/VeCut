@@ -21,6 +21,10 @@ int main() {
     assert(project.media().front().height == 1080);
     assert(!project.update_media_info("missing-media", 1000, 10, 10));
     assert(!project.update_media_info("media-1", -1, 10, 10));
+    MediaAsset invalid_dimensions = media;
+    invalid_dimensions.id = "invalid-dimensions";
+    invalid_dimensions.width = -1;
+    assert(!project.add_media(invalid_dimensions));
 
     Track track;
     track.id = "video-1";
@@ -34,6 +38,10 @@ int main() {
     first.source_in_ms = 0;
     first.source_out_ms = 4000;
     assert(project.add_clip("video-1", first));
+    Clip invalid_volume = first;
+    invalid_volume.id = "invalid-volume";
+    invalid_volume.volume = 5.0;
+    assert(!project.add_clip("video-1", invalid_volume));
     assert(project.tracks().front().clips.back().timeline_start_ms == 0);
 
     Clip second = first;
