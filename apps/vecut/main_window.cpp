@@ -495,12 +495,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     preview_controls->addWidget(preview_seek_, 1);
     preview_layout->addLayout(preview_controls);
 
-    preview_audio_ = new QAudioOutput(this);
-    preview_player_ = new QMediaPlayer(this);
-    preview_player_->setAudioOutput(preview_audio_);
-    preview_video_sink_ = new QVideoSink(this);
-    preview_player_->setVideoSink(preview_video_sink_);
-    connect(preview_video_sink_, &QVideoSink::videoFrameChanged, this,
+    video_preview_ = new VideoPreview(this);
+    audio_preview_ = new AudioPreview(this);
+    preview_player_ = video_preview_->player();
+    connect(video_preview_->video_sink(), &QVideoSink::videoFrameChanged, this,
             [this](const QVideoFrame& frame) {
         const QImage image = frame.toImage();
         if (!image.isNull()) {
@@ -556,19 +554,32 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
             preview_play_button_->setText("Pause");
         }
     });
-    connect(preview_player_, &QMediaPlayer::playbackStateChanged, this,
-            [this](QMediaPlayer::PlaybackState state) {
-        preview_play_button_->setText(state == QMediaPlayer::PlayingState ? "Pause" : "Play");
-    });
-    connect(preview_player_, &QMediaPlayer::durationChanged, this, [this](qint64 duration) {
-        preview_seek_->setRange(0, static_cast<int>(std::min<qint64>(
-            duration, std::numeric_limits<int>::max())));
-    });
-    connect(preview_player_, &QMediaPlayer::positionChanged, this, [this](qint64 position) {
-        if (!preview_seek_->isSliderDown())
-            preview_seek_->setValue(static_cast<int>(position));
-        render_preview_frame();
-    });
+    const auto connect_preview_player = [this](QMediaPlayer* player) {
+        connect(player, &QMediaPlayer::playbackStateChanged, this,
+                [this](QMediaPlayer::PlaybackState state) {
+            preview_play_button_->setText(state == QMediaPlayer::PlayingState ? "Pause" : "Play");
+        });
+        connect(player, &QMediaPlayer::durationChanged, this, [this](qint64 duration) {
+            preview_seek_->setRange(0, static_cast<int>(std::min<qint64>(
+                duration, std::numeric_limits<int>::max())));
+        });
+        connect(player, &QMediaPlayer::positionChanged, this, [this](qint64 position) {
+            if (player == preview_player_ && !preview_seek_->isSliderDown())
+                preview_seek_->setValue(static_cast<int>(position));
+            if (player == preview_player_) render_preview_frame();
+        });
+        connect(player, &QMediaPlayer::errorOccurred, this,
+                [this, player](QMediaPlayer::Error, const QString& error) {
+            if (player != preview_player_) return;
+            current_preview_frame_ = QImage();
+            preview_label_->setPixmap(QPixmap());
+            preview_label_->setText(QString("Preview could not play this file\\n%1").arg(error));
+            preview_stack_->setCurrentWidget(preview_label_);
+            status_label_->setText("Preview playback error.");
+        });
+    };
+    connect_preview_player(video_preview_->player());
+    connect_preview_player(audio_preview_->player());
     connect(preview_seek_, &QSlider::sliderMoved, this, [this](int position) {
         if (!preview_player_->source().isEmpty()) {
             preview_player_->setPosition(position);
@@ -576,14 +587,6 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
             preview_effect_time_ms_ = std::max(0, position);
             render_preview_frame();
         }
-    });
-    connect(preview_player_, &QMediaPlayer::errorOccurred, this,
-            [this](QMediaPlayer::Error, const QString& error) {
-        current_preview_frame_ = QImage();
-        preview_label_->setPixmap(QPixmap());
-        preview_label_->setText(QString("Preview could not play this file\n%1").arg(error));
-        preview_stack_->setCurrentWidget(preview_label_);
-        status_label_->setText("Preview playback error.");
     });
     workspace_->addWidget(preview_panel);
     workspace_->setStretchFactor(0, 1);
