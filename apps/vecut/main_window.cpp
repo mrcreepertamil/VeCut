@@ -1,4 +1,5 @@
 #include "main_window.h"
+#include "media_probe.h"
 
 #include <QFileDialog>
 #include <QFile>
@@ -782,12 +783,11 @@ void MainWindow::import_media() {
             ? kStillImageClipDurationMs : 0;
         asset.file_size_bytes = static_cast<std::uint64_t>(std::max<qint64>(0, info.size()));
 
-        QImageReader image_reader(path);
         if (asset.kind == vecut::MediaKind::Image) {
-            const QSize original_size = image_reader.size();
-            if (original_size.isValid()) {
-                asset.width = original_size.width();
-                asset.height = original_size.height();
+            const auto image_info = vecut::MediaProbe::inspect_image(path);
+            if (image_info.valid) {
+                asset.width = image_info.width;
+                asset.height = image_info.height;
             }
         }
 
@@ -799,12 +799,8 @@ void MainWindow::import_media() {
             media_kind_name(media_kind) + "  ·  " + info.fileName(), media_list_);
         item->setData(Qt::UserRole, media_id);
         if (media_kind == vecut::MediaKind::Image) {
-            const QSize original_size = image_reader.size();
-            if (original_size.isValid()) {
-                image_reader.setScaledSize(original_size.scaled(QSize(112, 64), Qt::KeepAspectRatio));
-                const QImage thumbnail = image_reader.read();
-                if (!thumbnail.isNull()) item->setIcon(QIcon(QPixmap::fromImage(thumbnail)));
-            }
+            const QImage thumbnail = vecut::MediaProbe::image_thumbnail(path, QSize(112, 64));
+            if (!thumbnail.isNull()) item->setIcon(QIcon(QPixmap::fromImage(thumbnail)));
         }
         probe_media(media_id, path, media_kind);
         ++imported;
@@ -912,8 +908,8 @@ void MainWindow::load_preview_media(const QString& media_id) {
         }
         preview_seek_->setRange(0, static_cast<int>(std::min<std::int64_t>(
             still_duration, std::numeric_limits<int>::max())));
-        QImageReader reader(QString::fromStdString(found->uri));
-        const QImage image = reader.read();
+        const QImage image = vecut::MediaProbe::load_image_preview(
+            QString::fromStdString(found->uri));
         if (!image.isNull()) {
             current_preview_frame_ = image;
             preview_label_->setText(QString());
@@ -1418,13 +1414,9 @@ void MainWindow::open_project() {
             QString::fromStdString(asset.display_name), media_list_);
         item->setData(Qt::UserRole, id);
         if (asset.kind == vecut::MediaKind::Image) {
-            QImageReader reader(QString::fromStdString(asset.uri));
-            const QSize original_size = reader.size();
-            if (original_size.isValid()) {
-                reader.setScaledSize(original_size.scaled(QSize(112, 64), Qt::KeepAspectRatio));
-                const QImage thumbnail = reader.read();
-                if (!thumbnail.isNull()) item->setIcon(QIcon(QPixmap::fromImage(thumbnail)));
-            }
+            const QImage thumbnail = vecut::MediaProbe::image_thumbnail(
+                QString::fromStdString(asset.uri), QSize(112, 64));
+            if (!thumbnail.isNull()) item->setIcon(QIcon(QPixmap::fromImage(thumbnail)));
         }
         if (source_info.exists()) probe_media(id, source_info.absoluteFilePath(), asset.kind);
         bool ok = false;
