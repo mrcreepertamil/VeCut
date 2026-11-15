@@ -854,7 +854,6 @@ void MainWindow::import_media() {
         "*.png *.jpg *.jpeg *.webp *.bmp *.gif);;All files (*)");
     if (paths.isEmpty()) return;
 
-    push_undo_state();
     int imported = 0;
     for (const QString& path : paths) {
         const QFileInfo info(path);
