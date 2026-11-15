@@ -1,4 +1,4 @@
-find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Multimedia)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Multimedia OpenGLWidgets)
 
 qt_standard_project_setup()
 
@@ -16,9 +16,11 @@ qt_add_executable(VeCut
     preview_compositor.h
     preview_shader_library.cpp
     preview_shader_library.h
+    gpu_preview_widget.cpp
+    gpu_preview_widget.h
 )
 
-target_link_libraries(VeCut PRIVATE Qt6::Widgets Qt6::Multimedia vecut_core)
+target_link_libraries(VeCut PRIVATE Qt6::Widgets Qt6::Multimedia Qt6::OpenGLWidgets vecut_core)
 target_compile_features(VeCut PRIVATE cxx_std_17)
 
 if(ANDROID)
