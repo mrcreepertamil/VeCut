@@ -319,6 +319,11 @@ public final class MainActivity extends Activity {
             selectedClipDurationMs = info.durationMs;
             selectedClip.setText("Selected #" + clipId + " · " + title
                     + " · " + dimensions + " · " + duration);
+            if (mimeType != null && mimeType.startsWith("video/")) {
+                showVideoPreview(Uri.parse(sourceUri));
+            } else if (mimeType != null && mimeType.startsWith("audio/")) {
+                showAudioPreview(Uri.parse(sourceUri));
+            }
         });
         selectedClipId = clipId;
         selectedClipDurationMs = info.durationMs;
@@ -605,7 +610,14 @@ public final class MainActivity extends Activity {
         previewImage.setVisibility(View.GONE);
         if (emptyPreview != null) emptyPreview.setVisibility(View.GONE);
         videoPreview.getView().setVisibility(View.VISIBLE);
-        videoPreview.setVideo(uri);
+        java.util.ArrayList<Uri> videoSources = new java.util.ArrayList<>();
+        for (ProjectStore.Source source : ProjectStore.load(getApplicationContext())) {
+            if (source.mimeType != null && source.mimeType.startsWith("video/")) {
+                videoSources.add(Uri.parse(source.uri));
+            }
+        }
+        if (videoSources.isEmpty()) videoSources.add(uri);
+        videoPreview.setPlaylist(videoSources, uri);
         if (playButton != null) playButton.setText("Ⅱ");
         playing = true;
     }
