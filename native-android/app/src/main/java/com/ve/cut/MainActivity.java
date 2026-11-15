@@ -138,6 +138,10 @@ public final class MainActivity extends Activity {
 
         int glVersion = 2;
         videoPreview = new GlVideoPreview(this);
+        videoPreview.setOnPlaybackEnded(() -> {
+            playing = false;
+            if (playButton != null) playButton.setText("▶");
+        });
         GLSurfaceView glView = videoPreview.getView();
         frame.addView(glView, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
@@ -634,19 +638,4 @@ public final class MainActivity extends Activity {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
     }
 
-    private static final class PreviewRenderer implements GLSurfaceView.Renderer {
-        @Override public void onSurfaceCreated(javax.microedition.khronos.opengles.GL10 gl,
-                                                javax.microedition.khronos.egl.EGLConfig config) {
-            GLES20.glClearColor(0.035f, 0.038f, 0.052f, 1.0f);
-        }
-
-        @Override public void onSurfaceChanged(javax.microedition.khronos.opengles.GL10 gl,
-                                               int width, int height) {
-            GLES20.glViewport(0, 0, width, height);
-        }
-
-        @Override public void onDrawFrame(javax.microedition.khronos.opengles.GL10 gl) {
-            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-        }
-    }
 }
