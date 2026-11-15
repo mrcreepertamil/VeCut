@@ -985,6 +985,11 @@ void MainWindow::open_project() {
         return static_cast<qint64>(number);
     };
 
+    if (!root.value("media").isArray() || !root.value("tracks").isArray()) {
+        status_label_->setText("Project is missing its media or track list.");
+        return;
+    }
+
     vecut::Project loaded(root.value("name").toString("Untitled Project").toStdString());
     const QJsonArray media_items = root.value("media").toArray();
     for (const QJsonValue& value : media_items) {
@@ -1051,6 +1056,10 @@ void MainWindow::open_project() {
     for (int track_index = 0; track_index < track_items.size(); ++track_index) {
         const QJsonObject track_item = track_items.at(track_index).toObject();
         const QString track_id = track_item.value("id").toString();
+        if (!track_item.value("clips").isArray()) {
+            status_label_->setText("Project contains a track without a valid clip list.");
+            return;
+        }
         const QJsonArray clips = track_item.value("clips").toArray();
         for (const QJsonValue& clip_value : clips) {
             if (!clip_value.isObject()) {
