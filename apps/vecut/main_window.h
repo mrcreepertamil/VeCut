@@ -10,6 +10,7 @@ class QResizeEvent;
 class QSplitter;
 class QFrame;
 class QPushButton;
+class QMediaPlayer;
 
 class MainWindow final : public QMainWindow {
     Q_OBJECT
@@ -24,6 +25,8 @@ private:
     void import_media();
     void add_track(vecut::TrackKind kind);
     void update_media_details();
+    void probe_media(const QString& media_id, const QString& path, vecut::MediaKind kind);
+    void refresh_media_item(const QString& media_id);
     void update_track_list();
 
     vecut::Project project_;
@@ -39,6 +42,7 @@ private:
     bool portrait_layout_ = false;
     bool responsive_layout_initialized_ = false;
     unsigned int next_media_id_ = 1;
+    std::vector<QMediaPlayer*> active_probes_;
     unsigned int video_track_count_ = 0;
     unsigned int audio_track_count_ = 0;
 };
