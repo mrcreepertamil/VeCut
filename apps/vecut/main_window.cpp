@@ -159,6 +159,7 @@ public:
     std::function<void(const QString&, const QString&, std::int64_t,
                        std::int64_t, std::int64_t)> on_clip_edited;
     std::function<void(const QString&, const QString&)> on_clip_selected;
+    std::function<void()> on_clip_edit_started;
 
     QSize sizeHint() const override {
         std::int64_t duration = project_ ? project_->duration_ms() : 0;
@@ -354,6 +355,10 @@ protected:
             source_out = std::clamp(original_out_ms_ + delta,
                                     original_in_ms_ + 1, maximum);
         }
+        if (!drag_history_saved_ && on_clip_edit_started) {
+            on_clip_edit_started();
+            drag_history_saved_ = true;
+        }
         on_clip_edited(drag_track_id_, drag_clip_id_, start, source_in, source_out);
         refresh();
     }
@@ -361,6 +366,7 @@ protected:
     void mouseReleaseEvent(QMouseEvent* event) override {
         if (event->button() == Qt::LeftButton) {
             drag_mode_ = DragMode::None;
+            drag_history_saved_ = false;
             unsetCursor();
         }
         QWidget::mouseReleaseEvent(event);
@@ -416,6 +422,7 @@ private:
     QString drag_track_id_;
     QString drag_clip_id_;
     DragMode drag_mode_ = DragMode::None;
+    bool drag_history_saved_ = false;
     int drag_origin_x_ = 0;
     std::int64_t original_start_ms_ = 0;
     std::int64_t original_in_ms_ = 0;
@@ -691,6 +698,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
             status_label_->setText(QString("Selected clip %1 on %2.")
                 .arg(clip_id, track_id));
         };
+    timeline_widget_->on_clip_edit_started = [this] { push_undo_state(); };
     timeline_widget_->on_clip_edited =
         [this](const QString& track_id, const QString& clip_id, std::int64_t start_ms,
                std::int64_t source_in_ms, std::int64_t source_out_ms) {
@@ -846,6 +854,7 @@ void MainWindow::import_media() {
         "*.png *.jpg *.jpeg *.webp *.bmp *.gif);;All files (*)");
     if (paths.isEmpty()) return;
 
+    push_undo_state();
     int imported = 0;
     for (const QString& path : paths) {
         const QFileInfo info(path);
