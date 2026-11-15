@@ -52,6 +52,10 @@ public final class MainActivity extends Activity {
     private final ExecutorService mediaExecutor = Executors.newSingleThreadExecutor();
     private int selectedClipId = -1;
     private long selectedClipDurationMs = 0;
+    private long selectedSourceInMs = 0;
+    private long selectedSourceOutMs = -1;
+    private int selectedTransitionType = 0;
+    private long selectedTransitionDurationMs = 500;
     private String selectedClipSourceUri;
     private String selectedClipMimeType;
     private String selectedClipName;
@@ -349,6 +353,7 @@ public final class MainActivity extends Activity {
             selectedClipMimeType = mimeType;
             selectedClipName = title;
             selectedClipInfo = info;
+            loadSelectedClipSettings(clipId);
             selectedClip.setText("Selected #" + clipId + " · " + title
                     + " · " + dimensions + " · " + duration);
             if (mimeType != null && mimeType.startsWith("video/")) {
@@ -363,6 +368,7 @@ public final class MainActivity extends Activity {
         selectedClipMimeType = mimeType;
         selectedClipName = title;
         selectedClipInfo = info;
+        loadSelectedClipSettings(clipId);
         chip.setOnLongClickListener(v -> {
             new AlertDialog.Builder(this).setTitle("Remove clip?")
                     .setMessage("Remove " + title + " from this timeline?")
@@ -465,42 +471,121 @@ public final class MainActivity extends Activity {
                 }).show();
     }
 
+    private void loadSelectedClipSettings(int clipId) {
+        long[] settings = mediaEngine.getClipSettings(clipId);
+        if (settings == null || settings.length < 4) return;
+        selectedSourceInMs = settings[0];
+        selectedSourceOutMs = settings[1];
+        selectedTransitionType = (int) settings[2];
+        selectedTransitionDurationMs = settings[3];
+    }
+
     private void showTrimDialog() {
         if (selectedClipId < 0) { toast("Select a timeline clip first."); return; }
+        if (selectedClipDurationMs <= 0) { toast("This source has no known duration for range trimming."); return; }
+        int max = (int) Math.min(Integer.MAX_VALUE, selectedClipDurationMs);
+        int initialStart = (int) Math.max(0, Math.min(max - 1, selectedSourceInMs));
+        int initialEnd = (int) Math.max(initialStart + 1,
+                Math.min(max, selectedSourceOutMs < 0 ? max : selectedSourceOutMs));
         LinearLayout fields = new LinearLayout(this);
         fields.setOrientation(LinearLayout.VERTICAL);
-        fields.setPadding(dp(20), dp(12), dp(20), 0);
-        EditText start = new EditText(this);
-        start.setSingleLine(true);
-        start.setInputType(InputType.TYPE_CLASS_NUMBER);
-        start.setHint("Start (milliseconds)");
-        start.setText("0");
-        EditText end = new EditText(this);
-        end.setSingleLine(true);
-        end.setInputType(InputType.TYPE_CLASS_NUMBER);
-        end.setHint("End (milliseconds)");
-        if (selectedClipDurationMs > 0) end.setText(String.valueOf(selectedClipDurationMs));
+        fields.setPadding(dp(20), dp(8), dp(20), 0);
+        TextView startLabel = label("", 12, TEXT, true);
+        TextView endLabel = label("", 12, TEXT, true);
+        SeekBar start = new SeekBar(this);
+        SeekBar end = new SeekBar(this);
+        start.setMax(Math.max(1, max - 1));
+        end.setMax(max);
+        start.setProgress(initialStart);
+        end.setProgress(initialEnd);
+        Runnable updateLabels = () -> {
+            startLabel.setText("IN  ·  " + formatTime(start.getProgress()));
+            endLabel.setText("OUT ·  " + formatTime(end.getProgress()));
+        };
+        start.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar bar, int value, boolean fromUser) {
+                if (value >= end.getProgress()) end.setProgress(Math.min(max, value + 1));
+                updateLabels.run();
+            }
+            @Override public void onStartTrackingTouch(SeekBar bar) { }
+            @Override public void onStopTrackingTouch(SeekBar bar) { }
+        });
+        end.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar bar, int value, boolean fromUser) {
+                if (value <= start.getProgress()) start.setProgress(Math.max(0, value - 1));
+                updateLabels.run();
+            }
+            @Override public void onStartTrackingTouch(SeekBar bar) { }
+            @Override public void onStopTrackingTouch(SeekBar bar) { }
+        });
+        updateLabels.run();
+        fields.addView(startLabel);
         fields.addView(start);
+        fields.addView(endLabel);
         fields.addView(end);
-        new AlertDialog.Builder(this).setTitle("Trim selected clip")
-                .setMessage("Enter the source range in milliseconds.")
+        new AlertDialog.Builder(this).setTitle("Custom clip trim")
+                .setMessage("Drag the IN and OUT handles to choose the exact source range.")
                 .setView(fields).setNegativeButton("Cancel", null)
                 .setPositiveButton("Apply", (dialog, which) -> {
-                    try {
-                        long inMs = Long.parseLong(start.getText().toString().trim());
-                        long outMs = Long.parseLong(end.getText().toString().trim());
-                        if (selectedClipDurationMs > 0 && outMs > selectedClipDurationMs) {
-                            toast("End time exceeds the media duration."); return;
-                        }
-                        if (!mediaEngine.trimClip(selectedClipId, inMs, outMs)) {
-                            toast("Invalid trim range."); return;
-                        }
-                        selectedClip.setText("Clip #" + selectedClipId + " · Trim "
-                                + formatTime(inMs) + " – " + formatTime(outMs));
-                        toast("Trim range saved to the native timeline.");
-                    } catch (NumberFormatException error) {
-                        toast("Enter valid millisecond values.");
+                    long inMs = start.getProgress();
+                    long outMs = end.getProgress();
+                    if (!mediaEngine.trimClip(selectedClipId, inMs, outMs)) {
+                        toast("Invalid trim range.");
+                        return;
                     }
+                    selectedSourceInMs = inMs;
+                    selectedSourceOutMs = outMs;
+                    selectedClip.setText("Clip #" + selectedClipId + " · "
+                            + formatTime(inMs) + " – " + formatTime(outMs));
+                    toast("Custom trim saved in the C++ timeline.");
+                }).show();
+    }
+
+    private void showTransitionDialog() {
+        if (selectedClipId < 0) { toast("Select a timeline clip first."); return; }
+        String[] types = {"None", "Fade", "Dissolve", "Wipe left → right",
+                "Wipe right → left", "Slide left → right", "Slide right → left"};
+        LinearLayout fields = new LinearLayout(this);
+        fields.setOrientation(LinearLayout.VERTICAL);
+        fields.setPadding(dp(20), dp(8), dp(20), 0);
+        TextView durationLabel = label("", 12, TEXT, true);
+        SeekBar duration = new SeekBar(this);
+        duration.setMax(58); // 100–3000 ms in 50 ms increments.
+        int currentDuration = (int) Math.max(100, Math.min(3000, selectedTransitionDurationMs));
+        duration.setProgress((currentDuration - 100) / 50);
+        Runnable updateDuration = () -> durationLabel.setText(
+                "Duration · " + (100 + duration.getProgress() * 50) + " ms");
+        duration.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar bar, int value, boolean fromUser) { updateDuration.run(); }
+            @Override public void onStartTrackingTouch(SeekBar bar) { }
+            @Override public void onStopTrackingTouch(SeekBar bar) { }
+        });
+        updateDuration.run();
+        fields.addView(durationLabel);
+        fields.addView(duration);
+        new AlertDialog.Builder(this).setTitle("Custom clip transition")
+                .setSingleChoiceItems(types, selectedTransitionType, (dialog, which) -> {
+                    selectedTransitionType = which;
+                    // Keep the chooser open so duration can be adjusted before applying.
+                })
+                .setView(fields)
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Apply", (dialog, which) -> {
+                    long durationMs = selectedTransitionType == 0 ? 0 : 100 + duration.getProgress() * 50L;
+                    long clipLength = selectedSourceOutMs >= 0
+                            ? selectedSourceOutMs - selectedSourceInMs : selectedClipDurationMs;
+                    if (selectedTransitionType != 0 && clipLength > 0 && durationMs > clipLength) {
+                        toast("Transition duration cannot exceed the trimmed clip length.");
+                        return;
+                    }
+                    if (!mediaEngine.setClipTransition(selectedClipId, selectedTransitionType, durationMs)) {
+                        toast("Could not save this transition.");
+                        return;
+                    }
+                    selectedTransitionDurationMs = durationMs;
+                    selectedClip.setText("Clip #" + selectedClipId + " · " + types[selectedTransitionType]
+                            + (durationMs > 0 ? " · " + durationMs + " ms" : ""));
+                    toast("Transition saved in the C++ timeline.");
                 }).show();
     }
     private String formatTime(long milliseconds) {
@@ -519,6 +604,7 @@ public final class MainActivity extends Activity {
         tools.addView(tool("T", "Text", false));
         tools.addView(tool("◐", "Effects", false));
         tools.addView(tool("↗", "Fade", false));
+        tools.addView(tool("⇄", "Transition", false));
         tools.addView(tool("♫", "Audio", false));
         tools.addView(tool("▧", "Overlay", false));
         scroll.addView(tools);
@@ -547,6 +633,8 @@ public final class MainActivity extends Activity {
                 showEffectsDialog();
             } else if ("Fade".equals(name)) {
                 showFadeDialog();
+            } else if ("Transition".equals(name)) {
+                showTransitionDialog();
             } else if ("Audio".equals(name)) {
                 openMediaPicker();
             } else {
