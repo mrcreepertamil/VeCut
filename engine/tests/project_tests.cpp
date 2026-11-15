@@ -1,5 +1,6 @@
 #include "vecut/project.h"
 
+#include <algorithm>
 #include <cassert>
 #include <string>
 
@@ -67,11 +68,19 @@ int main() {
     const auto right_id = project.split_clip("video-1", "clip-1", 2000);
     assert(right_id.has_value());
     assert(project.tracks().front().clips.size() == 4);
+    const auto& split_clips = project.tracks().front().clips;
+    const auto right_clip = std::find_if(split_clips.begin(), split_clips.end(),
+        [&](const Clip& clip) { return clip.id == *right_id; });
+    assert(right_clip != split_clips.end());
+    assert(right_clip->timeline_start_ms == 1500);
+    assert(project.move_clip_to_time("video-1", "clip-1", 12000));
+    assert(!project.move_clip_to_time("video-1", "missing", 0));
+    assert(!project.move_clip_to_time("video-1", "clip-1", -1));
 
     std::string error;
     assert(project.validate(&error));
     assert(error.empty());
-    assert(project.duration_ms() > 0);
+    assert(project.duration_ms() >= 12000);
 
     assert(project.remove_clip("video-1", *right_id));
     assert(!project.remove_clip("video-1", *right_id));
