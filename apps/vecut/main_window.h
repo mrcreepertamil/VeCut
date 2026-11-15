@@ -26,7 +26,9 @@ class QVideoSink;
 class QStackedWidget;
 class QSlider;
 class QTimer;
-class TimelineWidget;\nclass GpuPreviewWidget;\nclass QComboBox;
+class TimelineWidget;
+class GpuPreviewWidget;
+class QComboBox;
 
 class MainWindow final : public QMainWindow {
     Q_OBJECT
@@ -64,7 +66,9 @@ private:
     QFrame* timeline_panel_ = nullptr;
     QListWidget* media_list_ = nullptr;
     TimelineWidget* timeline_widget_ = nullptr;
-    QLabel* preview_label_ = nullptr;\n    GpuPreviewWidget* gpu_preview_ = nullptr;\n    QComboBox* preview_filter_ = nullptr;
+    QLabel* preview_label_ = nullptr;
+    GpuPreviewWidget* gpu_preview_ = nullptr;
+    QComboBox* preview_filter_ = nullptr;
 
     QImage current_preview_frame_;
     PreviewCompositor preview_compositor_;
