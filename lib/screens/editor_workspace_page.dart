@@ -615,7 +615,20 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                             height: 85 * _overlayScale,
                             child: ClipRRect(borderRadius: BorderRadius.circular(8), child: VideoPlayer(_overlayVideoController!)),
                           ),
-                        if (_fadeInMs > 0 || _fadeOutMs > 0)\n                          Positioned.fill(\n                            child: IgnorePointer(\n                              child: ColoredBox(\n                                color: Colors.black.withOpacity(\n                                  [\n                                    _fadeInMs > 0 ? (1 - currentPosition.inMilliseconds / _fadeInMs).clamp(0.0, 1.0) : 0.0,\n                                    _fadeOutMs > 0 ? ((currentPosition.inMilliseconds - (_duration.inMilliseconds - _fadeOutMs)) / _fadeOutMs).clamp(0.0, 1.0) : 0.0,\n                                  ].reduce((a, b) => a > b ? a : b),\n                                ),\n                              ),\n                            ),\n                          ),\n                        if (overlayVisible && _overlayText != null)
+                        if (_fadeInMs > 0 || _fadeOutMs > 0)
+                          Positioned.fill(
+                            child: IgnorePointer(
+                              child: ColoredBox(
+                                color: Colors.black.withOpacity(
+                                  [
+                                    _fadeInMs > 0 ? (1 - currentPosition.inMilliseconds / _fadeInMs).clamp(0.0, 1.0) : 0.0,
+                                    _fadeOutMs > 0 ? ((currentPosition.inMilliseconds - (_duration.inMilliseconds - _fadeOutMs)) / _fadeOutMs).clamp(0.0, 1.0) : 0.0,
+                                  ].reduce((a, b) => a > b ? a : b),
+                                ),
+                              ),
+                            ),
+                          ),
+                        if (overlayVisible && _overlayText != null)
                           Positioned(
                             left: (_overlayX * 220).clamp(0, 220),
                             top: (_overlayY * 130).clamp(0, 130),
