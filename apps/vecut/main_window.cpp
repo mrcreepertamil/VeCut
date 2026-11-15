@@ -443,11 +443,17 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 
     auto* open_button = new QPushButton("Open project", root);
     auto* save_button = new QPushButton("Save project", root);
+    undo_button_ = new QPushButton("Undo", root);
+    redo_button_ = new QPushButton("Redo", root);
+    undo_button_->setEnabled(false);
+    redo_button_->setEnabled(false);
     auto* import_button = new QPushButton("Import media", root);
     import_button->setObjectName("primaryButton");
     import_button->setMinimumHeight(42);
     toolbar->addWidget(open_button);
     toolbar->addWidget(save_button);
+    toolbar->addWidget(undo_button_);
+    toolbar->addWidget(redo_button_);
     toolbar->addWidget(import_button);
     outer->addLayout(toolbar);
 
@@ -710,6 +716,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     connect(open_button, &QPushButton::clicked, this, [this] { open_project(); });
     connect(save_button, &QPushButton::clicked, this, [this] { save_project(); });
     connect(import_button, &QPushButton::clicked, this, [this] { import_media(); });
+    connect(undo_button_, &QPushButton::clicked, this, [this] { undo_edit(); });
+    connect(redo_button_, &QPushButton::clicked, this, [this] { redo_edit(); });
     connect(media_list_, &QListWidget::currentItemChanged, this,
             [this](QListWidgetItem*, QListWidgetItem*) { update_media_details(); });
     connect(add_video_button_, &QPushButton::clicked, this,
@@ -750,6 +758,51 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     );
     setCentralWidget(root);
     apply_responsive_layout();
+}
+
+void MainWindow::push_undo_state() {
+    undo_stack_.push_back(project_);
+    constexpr std::size_t kMaximumHistory = 100;
+    if (undo_stack_.size() > kMaximumHistory) undo_stack_.erase(undo_stack_.begin());
+    redo_stack_.clear();
+    update_history_buttons();
+}
+
+void MainWindow::update_history_buttons() {
+    if (undo_button_) undo_button_->setEnabled(!undo_stack_.empty());
+    if (redo_button_) redo_button_->setEnabled(!redo_stack_.empty());
+}
+
+void MainWindow::undo_edit() {
+    if (undo_stack_.empty()) return;
+    redo_stack_.push_back(project_);
+    project_ = undo_stack_.back();
+    undo_stack_.pop_back();
+    selected_track_id_.clear();
+    selected_clip_id_.clear();
+    if (timeline_widget_) {
+        timeline_widget_->selectClip({});
+        timeline_widget_->refresh();
+    }
+    update_history_buttons();
+    render_preview_frame();
+    status_label_->setText("Undo complete.");
+}
+
+void MainWindow::redo_edit() {
+    if (redo_stack_.empty()) return;
+    undo_stack_.push_back(project_);
+    project_ = redo_stack_.back();
+    redo_stack_.pop_back();
+    selected_track_id_.clear();
+    selected_clip_id_.clear();
+    if (timeline_widget_) {
+        timeline_widget_->selectClip({});
+        timeline_widget_->refresh();
+    }
+    update_history_buttons();
+    render_preview_frame();
+    status_label_->setText("Redo complete.");
 }
 
 void MainWindow::resizeEvent(QResizeEvent* event) {
@@ -849,6 +902,7 @@ void MainWindow::add_track(vecut::TrackKind kind) {
         track.name = "Video " + std::to_string(++video_track_count_);
     }
     const std::string name = track.name;
+    push_undo_state();
     if (!project_.add_track(std::move(track))) {
         status_label_->setText("Could not add track.");
         return;
@@ -1140,6 +1194,7 @@ void MainWindow::add_media_to_track(const QString& media_id, const QString& trac
     clip.source_in_ms = 0;
     clip.source_out_ms = clip_duration;
     clip.timeline_start_ms = timeline_start_ms;
+    push_undo_state();
     if (!project_.add_clip(track->id, std::move(clip))) {
         status_label_->setText("Could not add this media clip.");
         return;
@@ -1391,6 +1446,9 @@ void MainWindow::open_project() {
         return;
     }
 
+    undo_stack_.clear();
+    redo_stack_.clear();
+    update_history_buttons();
     stop_timeline_audio();
     preview_player_->stop();
     preview_player_->setSource(QUrl());
@@ -1483,6 +1541,7 @@ void MainWindow::split_selected_clip() {
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     if (dialog.exec() != QDialog::Accepted) return;
 
+    push_undo_state();
     const auto new_id = project_.split_clip(selected_track_id_.toStdString(),
         selected_clip_id_.toStdString(), position->value());
     if (!new_id) {
@@ -1545,6 +1604,7 @@ void MainWindow::trim_selected_clip() {
         status_label_->setText("Source OUT must be after source IN.");
         return;
     }
+    push_undo_state();
     if (!project_.trim_clip(selected_track_id_.toStdString(),
             selected_clip_id_.toStdString(), in_point->value(), out_point->value())) {
         status_label_->setText("The trim range is invalid or exceeds the media duration.");
@@ -1641,6 +1701,7 @@ void MainWindow::edit_selected_transition() {
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     if (dialog.exec() != QDialog::Accepted) return;
 
+    push_undo_state();
     vecut::Transition transition;
     transition.kind = static_cast<vecut::TransitionKind>(kind->currentData().toInt());
     transition.duration_ms = transition.kind == vecut::TransitionKind::None
@@ -1780,6 +1841,7 @@ void MainWindow::edit_selected_volume() {
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     if (dialog.exec() != QDialog::Accepted) return;
 
+    push_undo_state();
     if (!project_.set_clip_volume(selected_track_id_.toStdString(),
                                   selected_clip_id_.toStdString(), volume->value())) {
         status_label_->setText("Could not update clip volume.");
@@ -1794,6 +1856,7 @@ void MainWindow::remove_selected_clip() {
         status_label_->setText("Select a timeline clip before removing it.");
         return;
     }
+    push_undo_state();
     if (!project_.remove_clip(selected_track_id_.toStdString(),
                               selected_clip_id_.toStdString())) {
         status_label_->setText("Could not remove the selected clip.");
@@ -1812,6 +1875,7 @@ void MainWindow::ripple_delete_selected_clip() {
         status_label_->setText("Select a timeline clip before ripple deleting.");
         return;
     }
+    push_undo_state();
     if (!project_.ripple_delete_clip(selected_track_id_.toStdString(),
                                      selected_clip_id_.toStdString())) {
         status_label_->setText("Could not ripple delete the selected clip.");
