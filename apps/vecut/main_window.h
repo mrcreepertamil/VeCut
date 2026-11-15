@@ -44,6 +44,7 @@ private:
     void split_selected_clip();
     void trim_selected_clip();
     void edit_selected_transition();
+    void remove_selected_clip();
     void add_media_to_track(const QString& media_id, const QString& track_id,
                             std::int64_t timeline_start_ms);
 
@@ -66,6 +67,7 @@ private:
     QPushButton* split_button_ = nullptr;
     QPushButton* trim_button_ = nullptr;
     QPushButton* transition_button_ = nullptr;
+    QPushButton* remove_clip_button_ = nullptr;
     QString selected_track_id_;
     QString selected_clip_id_;
     bool portrait_layout_ = false;
