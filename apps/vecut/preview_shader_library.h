@@ -20,8 +20,8 @@ enum class PreviewFilterMode : int {
 // these sources are not compiled or executed by the current preview widget.
 class PreviewShaderLibrary final {
 public:
-    static QString vertex_source();
-    static QString fragment_source();
+    static QString vertex_source(bool gles = true);
+    static QString fragment_source(bool gles = true);
 };
 
 } // namespace vecut
