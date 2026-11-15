@@ -40,6 +40,10 @@ protected:
 
 private:
     void apply_responsive_layout();
+    void push_undo_state();
+    void undo_edit();
+    void redo_edit();
+    void update_history_buttons();
     void import_media();
     void save_project(bool save_as = false);
     void open_project();
@@ -104,6 +108,10 @@ private:
     bool timeline_audio_playing_ = false;
     QPushButton* remove_clip_button_ = nullptr;
     QPushButton* ripple_delete_button_ = nullptr;
+    QPushButton* undo_button_ = nullptr;
+    QPushButton* redo_button_ = nullptr;
+    std::vector<vecut::Project> undo_stack_;
+    std::vector<vecut::Project> redo_stack_;
     QString selected_track_id_;
     QString selected_clip_id_;
     bool portrait_layout_ = false;
