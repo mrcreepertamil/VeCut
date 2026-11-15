@@ -68,6 +68,8 @@ public:
                    std::int64_t source_in_ms, std::int64_t source_out_ms);
     bool set_transition(const std::string& track_id, const std::string& clip_id,
                         Transition transition);
+    bool set_clip_volume(const std::string& track_id, const std::string& clip_id,
+                         double volume);
     std::optional<std::string> split_clip(const std::string& track_id,
                                            const std::string& clip_id,
                                            std::int64_t split_source_time_ms);
