@@ -6,40 +6,50 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  build:
+  windows-desktop:
+    name: Build C++ Qt desktop app (Windows x64)
     runs-on: windows-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+      - name: Set up MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
         with:
-          channel: stable
+          arch: x64
 
-      - name: Generate Windows platform files
-        working-directory: .
-        run: flutter create --platforms=windows .
+      - name: Install Qt for Windows
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          modules: qtmultimedia
+          cache: true
 
-      - name: Install dependencies
-        working-directory: .
-        run: flutter pub get
+      - name: Configure C++17 Qt application
+        shell: pwsh
+        run: |
+          cmake -S . -B build-windows -A x64 `
+            -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" `
+            -DVECUT_BUILD_DESKTOP=ON `
+            -DBUILD_TESTING=ON
 
-      - name: Analyze Dart code
-        working-directory: .
-        run: flutter analyze
+      - name: Build VeCut and engine tests
+        run: cmake --build build-windows --config Release --parallel 2
 
-      - name: Run tests
-        working-directory: .
-        run: flutter test
+      - name: Run C++ engine tests
+        run: ctest --test-dir build-windows -C Release --output-on-failure
 
-      - name: Build Windows release
-        working-directory: .
-        run: flutter build windows --release
-
-      - name: Upload Windows build
+      - name: Upload Windows application
         uses: actions/upload-artifact@v4
         with:
-          name: vecut-windows-build
-          path: build/windows/x64/runner/Release/
+          name: vecut-windows-x64
+          path: build-windows/apps/vecut/Release/VeCut.exe
+          if-no-files-found: error
+          retention-days: 14
