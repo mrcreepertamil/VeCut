@@ -1672,6 +1672,7 @@ void MainWindow::edit_selected_transition() {
         return;
     }
     timeline_widget_->refresh();
+    render_preview_frame();
     status_label_->setText("Transition fades and clip animation settings saved in the project.");
 }
 
