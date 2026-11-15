@@ -36,7 +36,7 @@ public final class MainActivity extends Activity {
     private static final int PANEL_ALT = Color.rgb(34, 36, 46);
     private static final int TEXT = Color.rgb(244, 245, 250);
     private static final int MUTED = Color.rgb(151, 155, 170);
-    private static final int ACCENT = Color.rgb(139, 92, 246);
+    private static final int ACCENT = Color.rgb(34, 197, 94);
 
     private TextView mediaHint;
     private ImageView previewImage;
@@ -142,7 +142,7 @@ public final class MainActivity extends Activity {
         topLabel.setGravity(Gravity.CENTER_VERTICAL);
         topLabel.setPadding(dp(10), dp(6), dp(10), dp(6));
         topLabel.setBackground(round(0xAA171821, 20));
-        TextView live = label("●  PREVIEW", 10, 0xFFE3D8FF, true);
+        TextView live = label("●  PREVIEW", 10, 0xFFC5F7D3, true);
         topLabel.addView(live);
         FrameLayout.LayoutParams badgeParams = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, dp(28), Gravity.TOP | Gravity.LEFT);
@@ -152,7 +152,7 @@ public final class MainActivity extends Activity {
         LinearLayout empty = new LinearLayout(this);
         empty.setOrientation(LinearLayout.VERTICAL);
         empty.setGravity(Gravity.CENTER);
-        TextView icon = label("▶", 30, 0xFF777B8D, true);
+        TextView icon = label("▶", 30, 0xFF6F8B78, true);
         icon.setGravity(Gravity.CENTER);
         empty.addView(icon);
         mediaHint = label("Your preview will appear here", 13, 0xFFB6B8C4, true);
@@ -234,11 +234,11 @@ public final class MainActivity extends Activity {
 
         videoTrackContent = new LinearLayout(this);
         videoTrackContent.setGravity(Gravity.CENTER_VERTICAL);
-        panel.addView(track("V1", "＋  Import video or image", 0xFF3C315B, videoTrackContent),
+        panel.addView(track("V1", "＋  Import video or image", 0xFF244B32, videoTrackContent),
                 marginParams(ViewGroup.LayoutParams.MATCH_PARENT, 48, 0, 7));
         audioTrackContent = new LinearLayout(this);
         audioTrackContent.setGravity(Gravity.CENTER_VERTICAL);
-        panel.addView(track("A1", "＋  Import audio", 0xFF29464A, audioTrackContent),
+        panel.addView(track("A1", "＋  Import audio", 0xFF244B32, audioTrackContent),
                 new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)));
         selectedClip = label("No clips yet · Import media to begin", 10, MUTED, false);
         LinearLayout.LayoutParams note = new LinearLayout.LayoutParams(
@@ -283,7 +283,7 @@ public final class MainActivity extends Activity {
         TextView chip = label(title + "\n" + duration, 10, TEXT, true);
         chip.setGravity(Gravity.CENTER);
         chip.setPadding(dp(10), dp(3), dp(10), dp(3));
-        chip.setBackground(round(audio ? 0xFF31545A : 0xFF514071, 8));
+        chip.setBackground(round(audio ? 0xFF31545A : 0xFF245B39, 8));
         chip.setTag(clipId);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(124), dp(38));
         params.setMargins(0, 0, dp(6), 0);
@@ -379,8 +379,8 @@ public final class MainActivity extends Activity {
         item.setOrientation(LinearLayout.VERTICAL);
         item.setGravity(Gravity.CENTER);
         item.setPadding(dp(13), dp(9), dp(13), dp(7));
-        item.setBackground(round(primary ? 0xFF30264A : PANEL, 12));
-        TextView symbol = label(glyph, 19, primary ? 0xFFE5D9FF : TEXT, true);
+        item.setBackground(round(primary ? 0xFF173B27 : PANEL, 12));
+        TextView symbol = label(glyph, 19, primary ? 0xFFB7F7C8 : TEXT, true);
         symbol.setGravity(Gravity.CENTER);
         item.addView(symbol);
         TextView caption = label(name, 10, primary ? 0xFFE5D9FF : MUTED, true);
@@ -408,7 +408,7 @@ public final class MainActivity extends Activity {
         panel.addView(label("ENGINE STATUS", 9, MUTED, true));
         panel.addView(label(engineStatus + " · " + mediaEngine.getClipCount() + " timeline clips",
                 11, 0xFFB9BBC7, false));
-        TextView plugin = label("Developer plugins: JavaScript runtime available", 10, 0xFF9D91C9, false);
+        TextView plugin = label("Developer plugins: JavaScript runtime available", 10, 0xFF86DDA0, false);
         LinearLayout.LayoutParams pluginParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         pluginParams.topMargin = dp(5);
