@@ -4,6 +4,9 @@
 
 #include <QMainWindow>
 
+#include <cstdint>
+#include <vector>
+
 class QLabel;
 class QListWidget;
 class QResizeEvent;
@@ -12,6 +15,7 @@ class QFrame;
 class QPushButton;
 class QMediaPlayer;
 class QString;
+class TimelineWidget;
 
 class MainWindow final : public QMainWindow {
     Q_OBJECT
@@ -29,13 +33,14 @@ private:
     void probe_media(const QString& media_id, const QString& path, vecut::MediaKind kind);
     void refresh_media_item(const QString& media_id);
     void update_track_list();
-    void add_media_to_track(const QString& media_id, const QString& track_id);
+    void add_media_to_track(const QString& media_id, const QString& track_id,
+                            std::int64_t timeline_start_ms);
 
     vecut::Project project_;
     QSplitter* workspace_ = nullptr;
     QFrame* timeline_panel_ = nullptr;
     QListWidget* media_list_ = nullptr;
-    QListWidget* track_list_ = nullptr;
+    TimelineWidget* timeline_widget_ = nullptr;
     QLabel* preview_label_ = nullptr;
     QLabel* media_details_ = nullptr;
     QLabel* status_label_ = nullptr;
