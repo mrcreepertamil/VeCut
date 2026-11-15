@@ -15,6 +15,11 @@ int main() {
     media.kind = MediaKind::Video;
     media.duration_ms = 10000;
     assert(project.add_media(media));
+    assert(project.update_media_info("media-1", 10000, 1920, 1080));
+    assert(project.media().front().width == 1920);
+    assert(project.media().front().height == 1080);
+    assert(!project.update_media_info("missing-media", 1000, 10, 10));
+    assert(!project.update_media_info("media-1", -1, 10, 10));
 
     Track track;
     track.id = "video-1";
