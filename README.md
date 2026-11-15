@@ -29,7 +29,8 @@ The mobile layout is designed for portrait use, but Android/iOS packaging, touch
 - `apps/vecut/` contains the Qt Widgets application, written entirely in C++.
 - The workspace has a multi-file media import dialog, a media bin, selected-media details, image thumbnails, file-size reporting, and controls to create video/audio tracks.
 - Qt Multimedia asynchronously probes audio/video duration; Qt Image I/O reads still-image dimensions and thumbnails. Unknown durations remain unknown rather than being guessed.
-- Adding imported files as timeline clips, video thumbnails, decoding, playback and export are still separate unfinished features.
+- Media-bin items can be dragged onto compatible audio/video tracks. Track rows list their added clips; still images use a five-second default clip duration. Video/audio drops wait for duration probing to finish.
+- A full visual, time-scaled timeline with clip positioning, trim handles, playback and export is still unfinished.
 - Engine unit tests cover clip ordering (including moving to the end), trimming, transitions, splitting, validation and removal.
 
 ## Build
