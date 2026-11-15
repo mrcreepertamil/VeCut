@@ -980,7 +980,7 @@ void MainWindow::open_project() {
         const double number = value.toDouble();
         if (!std::isfinite(number) ||
             number < static_cast<double>(std::numeric_limits<qint64>::min()) ||
-            number > static_cast<double>(std::numeric_limits<qint64>::max()))
+            number >= std::ldexp(1.0, 63))
             return fallback;
         return static_cast<qint64>(number);
     };
@@ -1007,8 +1007,16 @@ void MainWindow::open_project() {
         asset.duration_ms = read_integer(item, "durationMs", -1);
         asset.file_size_bytes = static_cast<std::uint64_t>(
             std::max<qint64>(0, read_integer(item, "fileSizeBytes")));
-        asset.width = static_cast<int>(read_integer(item, "width", -1));
-        asset.height = static_cast<int>(read_integer(item, "height", -1));
+        const qint64 width = read_integer(item, "width", -1);
+        const qint64 height = read_integer(item, "height", -1);
+        if (width < 0 || height < 0 ||
+            width > std::numeric_limits<int>::max() ||
+            height > std::numeric_limits<int>::max()) {
+            status_label_->setText("Project contains invalid media dimensions.");
+            return;
+        }
+        asset.width = static_cast<int>(width);
+        asset.height = static_cast<int>(height);
         if (!loaded.add_media(std::move(asset))) {
             status_label_->setText("Project contains invalid or duplicate media entries.");
             return;
@@ -1112,6 +1120,8 @@ void MainWindow::open_project() {
             ? id.mid(6).toUInt(&ok) : 0;
         if (ok) max_media_id = std::max(max_media_id, media_number);
     }
+    audio_track_count_ = 0;
+    video_track_count_ = 0;
     for (const auto& track : project_.tracks()) {
         if (track.kind == vecut::TrackKind::Audio) ++audio_track_count_;
         else ++video_track_count_;
