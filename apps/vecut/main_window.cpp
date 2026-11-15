@@ -897,6 +897,21 @@ void MainWindow::load_preview_media(const QString& media_id) {
             QString::fromStdString(found->uri)));
     } else {
         preview_player_->setSource(QUrl());
+        std::int64_t still_duration = 5000;
+        const auto selected_track = std::find_if(project_.tracks().begin(), project_.tracks().end(),
+            [&](const vecut::Track& item) {
+                return QString::fromStdString(item.id) == selected_track_id_;
+            });
+        if (selected_track != project_.tracks().end()) {
+            const auto selected_clip = std::find_if(selected_track->clips.begin(),
+                selected_track->clips.end(), [&](const vecut::Clip& item) {
+                    return QString::fromStdString(item.id) == selected_clip_id_;
+                });
+            if (selected_clip != selected_track->clips.end())
+                still_duration = selected_clip->source_out_ms - selected_clip->source_in_ms;
+        }
+        preview_seek_->setRange(0, static_cast<int>(std::min<std::int64_t>(
+            still_duration, std::numeric_limits<int>::max())));
         QImageReader reader(QString::fromStdString(found->uri));
         const QImage image = reader.read();
         if (!image.isNull()) {
