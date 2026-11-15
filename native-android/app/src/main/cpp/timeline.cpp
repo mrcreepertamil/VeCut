@@ -67,13 +67,15 @@ int Timeline::split_clip(int id, int64_t split_at_ms) {
     if (it->source_out_ms < 0 || split_at_ms <= it->source_in_ms ||
         split_at_ms >= it->source_out_ms) return -1;
 
+    const auto current_index = static_cast<std::size_t>(std::distance(clips_.begin(), it));
     TimelineClip right = *it;
     right.id = next_id_++;
     right.source_in_ms = split_at_ms;
     it->source_out_ms = split_at_ms;
-    const auto insert_at = std::next(it);
-    clips_.insert(insert_at, std::move(right));
-    return clips_[static_cast<std::size_t>(std::distance(clips_.begin(), it) + 1)].id;
+    const int new_id = right.id;
+    clips_.insert(clips_.begin() + static_cast<std::ptrdiff_t>(current_index + 1),
+                  std::move(right));
+    return new_id;
 }
 
 void Timeline::clear() {
