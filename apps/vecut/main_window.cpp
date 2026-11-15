@@ -8,6 +8,7 @@
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QPushButton>
+#include <QResizeEvent>
 #include <QSplitter>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -17,6 +18,8 @@
 #include <utility>
 
 namespace {
+constexpr int kPortraitBreakpoint = 720;
+
 QLabel* make_section_title(const QString& text, QWidget* parent) {
     auto* label = new QLabel(text, parent);
     label->setStyleSheet("color:#f4f5fa;font-size:14px;font-weight:700;");
@@ -52,90 +55,101 @@ QString media_kind_name(vecut::MediaKind kind) {
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setWindowTitle("VeCut");
     resize(1360, 860);
-    setMinimumSize(980, 640);
+    setMinimumSize(320, 480);
 
     auto* root = new QWidget(this);
     root->setObjectName("root");
     auto* outer = new QVBoxLayout(root);
-    outer->setContentsMargins(20, 16, 20, 16);
-    outer->setSpacing(14);
+    outer->setContentsMargins(12, 10, 12, 10);
+    outer->setSpacing(10);
 
     auto* toolbar = new QHBoxLayout();
+    toolbar->setSpacing(8);
     auto* brand = new QLabel("VeCut  <span style='color:#22c55e'>STUDIO</span>", root);
     brand->setTextFormat(Qt::RichText);
-    brand->setStyleSheet("font-size:23px;font-weight:800;color:#f4f5fa;");
+    brand->setStyleSheet("font-size:22px;font-weight:800;color:#f4f5fa;");
     toolbar->addWidget(brand);
     toolbar->addStretch();
 
     auto* import_button = new QPushButton("Import media", root);
     import_button->setObjectName("primaryButton");
+    import_button->setMinimumHeight(42);
     toolbar->addWidget(import_button);
     outer->addLayout(toolbar);
 
-    auto* workspace = new QSplitter(Qt::Horizontal, root);
-    workspace->setChildrenCollapsible(false);
+    workspace_ = new QSplitter(Qt::Horizontal, root);
+    workspace_->setChildrenCollapsible(false);
+    workspace_->setHandleWidth(6);
 
-    auto* media_panel = make_panel(workspace);
+    auto* media_panel = make_panel(workspace_);
     auto* media_layout = new QVBoxLayout(media_panel);
-    media_layout->setContentsMargins(14, 14, 14, 14);
+    media_layout->setContentsMargins(10, 10, 10, 10);
+    media_layout->setSpacing(8);
     media_layout->addWidget(make_section_title("MEDIA BIN", media_panel));
     media_list_ = new QListWidget(media_panel);
     media_list_->setObjectName("mediaList");
-    media_list_->setMinimumWidth(210);
+    media_list_->setMinimumWidth(0);
     media_list_->setSpacing(4);
     media_layout->addWidget(media_list_, 1);
     media_details_ = new QLabel("No media selected", media_panel);
     media_details_->setWordWrap(true);
     media_details_->setStyleSheet("color:#a4a8b5;font-size:12px;");
     media_layout->addWidget(media_details_);
-    workspace->addWidget(media_panel);
+    workspace_->addWidget(media_panel);
 
-    auto* preview_panel = make_panel(workspace);
+    auto* preview_panel = make_panel(workspace_);
     auto* preview_layout = new QVBoxLayout(preview_panel);
-    preview_layout->setContentsMargins(14, 14, 14, 14);
+    preview_layout->setContentsMargins(10, 10, 10, 10);
+    preview_layout->setSpacing(8);
     preview_layout->addWidget(make_section_title("PREVIEW", preview_panel));
     preview_label_ = new QLabel("Your preview will appear here\n\nImport media to begin", preview_panel);
     preview_label_->setAlignment(Qt::AlignCenter);
-    preview_label_->setMinimumSize(420, 320);
+    preview_label_->setMinimumSize(0, 0);
+    preview_label_->setWordWrap(true);
     preview_label_->setStyleSheet("background:#090a0e;border:1px solid #303440;border-radius:12px;"
                                   "color:#a4a8b5;font-size:15px;");
     preview_layout->addWidget(preview_label_, 1);
-    workspace->addWidget(preview_panel);
-    workspace->setStretchFactor(0, 1);
-    workspace->setStretchFactor(1, 3);
-    outer->addWidget(workspace, 1);
+    workspace_->addWidget(preview_panel);
+    workspace_->setStretchFactor(0, 1);
+    workspace_->setStretchFactor(1, 3);
+    outer->addWidget(workspace_, 1);
 
-    auto* timeline_panel = make_panel(root);
-    auto* timeline_layout = new QVBoxLayout(timeline_panel);
-    timeline_layout->setContentsMargins(14, 12, 14, 12);
+    timeline_panel_ = make_panel(root);
+    auto* timeline_layout = new QVBoxLayout(timeline_panel_);
+    timeline_layout->setContentsMargins(10, 8, 10, 8);
+    timeline_layout->setSpacing(6);
     auto* timeline_toolbar = new QHBoxLayout();
-    timeline_toolbar->addWidget(make_section_title("TIMELINE", timeline_panel));
+    timeline_toolbar->setSpacing(6);
+    timeline_toolbar->addWidget(make_section_title("TIMELINE", timeline_panel_));
     timeline_toolbar->addStretch();
-    auto* add_video = new QPushButton("+ Video track", timeline_panel);
-    auto* add_audio = new QPushButton("+ Audio track", timeline_panel);
-    timeline_toolbar->addWidget(add_video);
-    timeline_toolbar->addWidget(add_audio);
+    add_video_button_ = new QPushButton("+ Video track", timeline_panel_);
+    add_audio_button_ = new QPushButton("+ Audio track", timeline_panel_);
+    add_video_button_->setMinimumHeight(40);
+    add_audio_button_->setMinimumHeight(40);
+    timeline_toolbar->addWidget(add_video_button_);
+    timeline_toolbar->addWidget(add_audio_button_);
     timeline_layout->addLayout(timeline_toolbar);
 
-    track_list_ = new QListWidget(timeline_panel);
+    track_list_ = new QListWidget(timeline_panel_);
     track_list_->setObjectName("trackList");
-    track_list_->setMinimumHeight(120);
+    track_list_->setMinimumHeight(0);
     track_list_->setMaximumHeight(180);
     track_list_->addItem("No tracks yet — add a video or audio track");
     timeline_layout->addWidget(track_list_);
-    outer->addWidget(timeline_panel);
+    outer->addWidget(timeline_panel_);
 
-    status_label_ = new QLabel("C++17 project engine ready · Media duration probing and playback are not connected yet",
+    status_label_ = new QLabel("C++17 project engine ready · Media probing and playback are not connected yet",
                                root);
+    status_label_->setWordWrap(true);
     status_label_->setStyleSheet("color:#9aa1af;font-size:11px;");
     outer->addWidget(status_label_);
 
     connect(import_button, &QPushButton::clicked, this, [this] { import_media(); });
     connect(media_list_, &QListWidget::currentItemChanged, this,
             [this](QListWidgetItem*, QListWidgetItem*) { update_media_details(); });
-    connect(add_video, &QPushButton::clicked, this,
+    connect(add_video_button_, &QPushButton::clicked, this,
             [this] { add_track(vecut::TrackKind::Video); });
-    connect(add_audio, &QPushButton::clicked, this,
+    connect(add_audio_button_, &QPushButton::clicked, this,
             [this] { add_track(vecut::TrackKind::Audio); });
 
     setStyleSheet(
@@ -146,12 +160,46 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
         "QListWidget::item{padding:8px;border-radius:5px;}"
         "QListWidget::item:selected{background:#263b31;color:#ffffff;}"
         "QPushButton{background:#292d38;color:#e9ebf2;border:1px solid #3a4050;"
-        "border-radius:7px;padding:8px 12px;font-weight:600;}"
+        "border-radius:7px;padding:8px 10px;font-weight:600;}"
         "QPushButton:hover{background:#343a48;}"
         "QPushButton#primaryButton{background:#16834a;border-color:#16834a;color:white;}"
         "QPushButton#primaryButton:hover{background:#1b9958;}"
     );
     setCentralWidget(root);
+    apply_responsive_layout();
+}
+
+void MainWindow::resizeEvent(QResizeEvent* event) {
+    QMainWindow::resizeEvent(event);
+    apply_responsive_layout();
+}
+
+void MainWindow::apply_responsive_layout() {
+    if (!workspace_ || !timeline_panel_) return;
+
+    // A narrow window uses a portrait stack. Wider windows use the desktop
+    // editing arrangement with the media bin beside the preview.
+    const bool use_portrait_layout = width() < kPortraitBreakpoint;
+    if (responsive_layout_initialized_ && use_portrait_layout == portrait_layout_) return;
+
+    portrait_layout_ = use_portrait_layout;
+    responsive_layout_initialized_ = true;
+
+    if (portrait_layout_) {
+        workspace_->setOrientation(Qt::Vertical);
+        workspace_->setSizes({145, 300});
+        timeline_panel_->setMaximumHeight(190);
+        add_video_button_->setText("+ Video");
+        add_audio_button_->setText("+ Audio");
+        status_label_->setMaximumHeight(34);
+    } else {
+        workspace_->setOrientation(Qt::Horizontal);
+        workspace_->setSizes({280, 820});
+        timeline_panel_->setMaximumHeight(230);
+        add_video_button_->setText("+ Video track");
+        add_audio_button_->setText("+ Audio track");
+        status_label_->setMaximumHeight(24);
+    }
 }
 
 void MainWindow::import_media() {
