@@ -7,6 +7,11 @@
 #include <QLabel>
 #include <QListWidget>
 #include <QListWidgetItem>
+#include <QImageReader>
+#include <QMediaPlayer>
+#include <QPixmap>
+#include <QIcon>
+#include <QUrl>
 #include <QPushButton>
 #include <QResizeEvent>
 #include <QSplitter>
@@ -219,18 +224,38 @@ void MainWindow::import_media() {
         asset.kind = media_kind_for_file(info);
         // Zero means "duration not probed yet"; never invent a source duration.
         asset.duration_ms = 0;
+        asset.file_size_bytes = static_cast<std::uint64_t>(std::max<qint64>(0, info.size()));
+
+        QImageReader image_reader(path);
+        if (asset.kind == vecut::MediaKind::Image) {
+            const QSize original_size = image_reader.size();
+            if (original_size.isValid()) {
+                asset.width = original_size.width();
+                asset.height = original_size.height();
+            }
+        }
+
+        const QString media_id = QString::fromStdString(asset.id);
+        const auto media_kind = asset.kind;
         if (!project_.add_media(std::move(asset))) continue;
 
-        const auto& added = project_.media().back();
         auto* item = new QListWidgetItem(
-            media_kind_name(added.kind) + "  ·  " + QString::fromStdString(added.display_name),
-            media_list_);
-        item->setData(Qt::UserRole, QString::fromStdString(added.id));
+            media_kind_name(media_kind) + "  ·  " + info.fileName(), media_list_);
+        item->setData(Qt::UserRole, media_id);
+        if (media_kind == vecut::MediaKind::Image) {
+            const QSize original_size = image_reader.size();
+            if (original_size.isValid()) {
+                image_reader.setScaledSize(original_size.scaled(QSize(112, 64), Qt::KeepAspectRatio));
+                const QImage thumbnail = image_reader.read();
+                if (!thumbnail.isNull()) item->setIcon(QIcon(QPixmap::fromImage(thumbnail)));
+            }
+        }
+        probe_media(media_id, path, media_kind);
         ++imported;
     }
 
     if (imported > 0) {
-        status_label_->setText(QString("Imported %1 file(s). Select an item to inspect it.")
+        status_label_->setText(QString("Imported %1 file(s). Reading metadata…")
                                    .arg(imported));
         if (!media_list_->currentItem()) media_list_->setCurrentRow(0);
     }
@@ -266,12 +291,83 @@ void MainWindow::update_media_details() {
         [&](const vecut::MediaAsset& asset) { return QString::fromStdString(asset.id) == id; });
     if (found == project_.media().end()) return;
 
+    const QString duration = found->duration_ms > 0
+        ? QString("%1:%2").arg(found->duration_ms / 60000, 2, 10, QLatin1Char('0'))
+                            .arg((found->duration_ms / 1000) % 60, 2, 10, QLatin1Char('0'))
+        : (found->kind == vecut::MediaKind::Image ? QString("Still image") : QString("Probing…"));
+    const QString dimensions = found->width > 0 && found->height > 0
+        ? QString("%1 × %2").arg(found->width).arg(found->height)
+        : QString("Dimensions unavailable");
+    const double size_mb = static_cast<double>(found->file_size_bytes) / (1024.0 * 1024.0);
     media_details_->setText(
-        QString("%1\n%2\nDuration: not probed")
-            .arg(QString::fromStdString(found->display_name), media_kind_name(found->kind)));
+        QString("%1\n%2\nDuration: %3\nSize: %4 MB\nDimensions: %5")
+            .arg(QString::fromStdString(found->display_name), media_kind_name(found->kind),
+                 duration, QString::number(size_mb, 'f', 2), dimensions));
     preview_label_->setText(
-        QString("%1\n\nMedia imported successfully\nPreview decoding is the next stage")
+        QString("%1\n\nMetadata loaded\nPreview playback is not connected yet")
             .arg(QString::fromStdString(found->display_name)));
+}
+
+void MainWindow::probe_media(const QString& media_id, const QString& path,
+                             vecut::MediaKind kind) {
+    if (kind == vecut::MediaKind::Image) {
+        const auto found = std::find_if(project_.media().begin(), project_.media().end(),
+            [&](const vecut::MediaAsset& asset) {
+                return QString::fromStdString(asset.id) == media_id;
+            });
+        if (found != project_.media().end()) {
+            project_.update_media_info(found->id, 0, found->width, found->height);
+            refresh_media_item(media_id);
+        }
+        return;
+    }
+
+    auto* player = new QMediaPlayer(this);
+    active_probes_.push_back(player);
+    connect(player, &QMediaPlayer::durationChanged, this,
+            [this, player, media_id](qint64 duration_ms) {
+        if (duration_ms <= 0) return;
+        const auto found = std::find_if(project_.media().begin(), project_.media().end(),
+            [&](const vecut::MediaAsset& asset) {
+                return QString::fromStdString(asset.id) == media_id;
+            });
+        if (found != project_.media().end()) {
+            project_.update_media_info(found->id, duration_ms, found->width, found->height);
+            refresh_media_item(media_id);
+            status_label_->setText(QString("Media metadata ready: %1")
+                                       .arg(QString::fromStdString(found->display_name)));
+        }
+        active_probes_.erase(std::remove(active_probes_.begin(), active_probes_.end(), player),
+                             active_probes_.end());
+        player->deleteLater();
+    });
+    connect(player, &QMediaPlayer::errorOccurred, this,
+            [this, player, media_id](QMediaPlayer::Error, const QString& error) {
+        status_label_->setText(QString("Could not probe media: %1").arg(error));
+        active_probes_.erase(std::remove(active_probes_.begin(), active_probes_.end(), player),
+                             active_probes_.end());
+        player->deleteLater();
+        refresh_media_item(media_id);
+    });
+    player->setSource(QUrl::fromLocalFile(path));
+}
+
+void MainWindow::refresh_media_item(const QString& media_id) {
+    for (int row = 0; row < media_list_->count(); ++row) {
+        auto* item = media_list_->item(row);
+        if (item->data(Qt::UserRole).toString() == media_id) {
+            const auto found = std::find_if(project_.media().begin(), project_.media().end(),
+                [&](const vecut::MediaAsset& asset) {
+                    return QString::fromStdString(asset.id) == media_id;
+                });
+            if (found != project_.media().end()) {
+                item->setText(media_kind_name(found->kind) + "  ·  " +
+                              QString::fromStdString(found->display_name));
+                if (media_list_->currentItem() == item) update_media_details();
+            }
+            break;
+        }
+    }
 }
 
 void MainWindow::update_track_list() {
