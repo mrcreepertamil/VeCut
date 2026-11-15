@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QMediaPlayer>
 #include <QAudioOutput>
+#include <QUrl>
 
 /** Portable Qt-backed audio-only preview playback. */
 class AudioPreview final : public QObject {
