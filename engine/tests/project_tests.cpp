@@ -168,5 +168,69 @@ int main() {
     invalid_video_clip.source_out_ms = 1000;
     assert(!still_project.add_clip("still-video", invalid_video_clip));
 
+
+    // Ripple delete closes a gap on the selected track without moving
+    // clips on other tracks or clips that overlap the removed region.
+    Project ripple_project("Ripple delete test");
+    MediaAsset ripple_media;
+    ripple_media.id = "ripple-media";
+    ripple_media.uri = "file:///ripple.mp4";
+    ripple_media.display_name = "ripple.mp4";
+    ripple_media.kind = MediaKind::Video;
+    ripple_media.duration_ms = 12000;
+    assert(ripple_project.add_media(ripple_media));
+
+    Track ripple_video;
+    ripple_video.id = "ripple-video";
+    ripple_video.kind = TrackKind::Video;
+    assert(ripple_project.add_track(ripple_video));
+    Track ripple_overlay;
+    ripple_overlay.id = "ripple-overlay";
+    ripple_overlay.kind = TrackKind::Overlay;
+    assert(ripple_project.add_track(ripple_overlay));
+
+    Clip ripple_a;
+    ripple_a.id = "ripple-a";
+    ripple_a.media_id = ripple_media.id;
+    ripple_a.source_in_ms = 0;
+    ripple_a.source_out_ms = 2000;
+    ripple_a.timeline_start_ms = 0;
+    assert(ripple_project.add_clip("ripple-video", ripple_a));
+
+    Clip ripple_remove = ripple_a;
+    ripple_remove.id = "ripple-remove";
+    ripple_remove.timeline_start_ms = 2000;
+    ripple_remove.source_out_ms = 5000;
+    assert(ripple_project.add_clip("ripple-video", ripple_remove));
+
+    Clip ripple_later = ripple_a;
+    ripple_later.id = "ripple-later";
+    ripple_later.timeline_start_ms = 5000;
+    assert(ripple_project.add_clip("ripple-video", ripple_later));
+
+    Clip ripple_overlap = ripple_a;
+    ripple_overlap.id = "ripple-overlap";
+    ripple_overlap.timeline_start_ms = 4000;
+    assert(ripple_project.add_clip("ripple-video", ripple_overlap));
+
+    Clip other_track_clip = ripple_a;
+    other_track_clip.id = "ripple-other-track";
+    other_track_clip.timeline_start_ms = 5000;
+    assert(ripple_project.add_clip("ripple-overlay", other_track_clip));
+
+    assert(ripple_project.ripple_delete_clip("ripple-video", "ripple-remove"));
+    const auto& ripple_video_clips = ripple_project.tracks()[0].clips;
+    const auto later_after_ripple = std::find_if(ripple_video_clips.begin(),
+        ripple_video_clips.end(), [](const Clip& clip) { return clip.id == "ripple-later"; });
+    const auto overlap_after_ripple = std::find_if(ripple_video_clips.begin(),
+        ripple_video_clips.end(), [](const Clip& clip) { return clip.id == "ripple-overlap"; });
+    assert(later_after_ripple != ripple_video_clips.end());
+    assert(later_after_ripple->timeline_start_ms == 2000);
+    assert(overlap_after_ripple != ripple_video_clips.end());
+    assert(overlap_after_ripple->timeline_start_ms == 4000);
+    assert(ripple_project.tracks()[1].clips.front().timeline_start_ms == 5000);
+    assert(!ripple_project.ripple_delete_clip("ripple-video", "ripple-remove"));
+    assert(ripple_project.validate());
+
     return 0;
 }
