@@ -30,6 +30,16 @@ public final class NativeMediaEngine {
         return nativeTrimClip(clipId, sourceInMs, sourceOutMs);
     }
 
+    /** Stores an incoming transition on a clip. Type: 0 none, 1 fade, 2 dissolve, 3/4 wipe, 5/6 slide. */
+    public boolean setClipTransition(int clipId, int type, long durationMs) {
+        return nativeSetClipTransition(clipId, type, durationMs);
+    }
+
+    /** Returns [sourceInMs, sourceOutMs, transitionType, transitionDurationMs]. */
+    public long[] getClipSettings(int clipId) {
+        return nativeGetClipSettings(clipId);
+    }
+
     /** Moves a clip to a zero-based position in the timeline. */
     public boolean moveClip(int clipId, int targetIndex) {
         return nativeMoveClip(clipId, targetIndex);
@@ -56,6 +66,8 @@ public final class NativeMediaEngine {
     private native int nativeAddClip(String uri, String mimeType);
     private native boolean nativeRemoveClip(int clipId);
     private native boolean nativeSetClipDuration(int clipId, long durationMs);
+    private native boolean nativeSetClipTransition(int clipId, int type, long durationMs);
+    private native long[] nativeGetClipSettings(int clipId);
     private native boolean nativeTrimClip(int clipId, long sourceInMs, long sourceOutMs);
     private native boolean nativeMoveClip(int clipId, int targetIndex);
     private native int nativeSplitClip(int clipId, long splitAtMs);
