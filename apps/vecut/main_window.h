@@ -32,6 +32,8 @@ protected:
 private:
     void apply_responsive_layout();
     void import_media();
+    void save_project(bool save_as = false);
+    void open_project();
     void add_track(vecut::TrackKind kind);
     void update_media_details(bool reload_preview = true);
     void load_preview_media(const QString& media_id);
@@ -59,6 +61,7 @@ private:
     QPushButton* add_audio_button_ = nullptr;
     bool portrait_layout_ = false;
     bool responsive_layout_initialized_ = false;
+    QString current_project_path_;
     unsigned int next_media_id_ = 1;
     unsigned int next_clip_id_ = 1;
     std::vector<QMediaPlayer*> active_probes_;
