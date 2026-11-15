@@ -1410,11 +1410,11 @@ void MainWindow::toggle_timeline_audio() {
     stop_timeline_audio();
     std::size_t channel_count = 0;
     for (const auto& track : project_.tracks()) {
-        if (track.kind != vecut::TrackKind::Audio || track.muted) continue;
+        if (track.muted) continue;
         for (const auto& clip : track.clips) {
             const auto media = std::find_if(project_.media().begin(), project_.media().end(),
                 [&](const vecut::MediaAsset& asset) { return asset.id == clip.media_id; });
-            if (media == project_.media().end() || media->kind != vecut::MediaKind::Audio)
+            if (media == project_.media().end() || media->kind == vecut::MediaKind::Image)
                 continue;
 
             AudioMixChannel channel;
@@ -1426,7 +1426,6 @@ void MainWindow::toggle_timeline_audio() {
             channel.timeline_end_ms = clip.timeline_start_ms +
                 (clip.source_out_ms - clip.source_in_ms);
             channel.source_in_ms = clip.source_in_ms;
-            channel.volume = clip.volume;
             channel.output->setVolume(std::clamp(clip.volume, 0.0, 1.0));
             audio_mix_channels_.push_back(channel);
             ++channel_count;
@@ -1434,7 +1433,7 @@ void MainWindow::toggle_timeline_audio() {
     }
 
     if (channel_count == 0) {
-        status_label_->setText("Add audio clips to an unmuted audio track first.");
+        status_label_->setText("Add audio or video clips to an unmuted track first.");
         return;
     }
 
