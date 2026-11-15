@@ -60,6 +60,14 @@ bool Project::add_clip(const std::string& track_id, Clip clip) {
     if (track->kind == TrackKind::Audio && asset->kind == MediaKind::Image) return false;
     if (clip.incoming_transition.duration_ms < 0 ||
         clip.incoming_transition.duration_ms > clip.source_out_ms - clip.source_in_ms) return false;
+    if (clip.timeline_start_ms < -1) return false;
+    if (clip.timeline_start_ms == -1) {
+        std::int64_t track_end = 0;
+        for (const auto& existing : track->clips)
+            track_end = std::max(track_end, existing.timeline_start_ms +
+                existing.source_out_ms - existing.source_in_ms);
+        clip.timeline_start_ms = track_end;
+    }
     track->clips.push_back(std::move(clip));
     return true;
 }
@@ -114,11 +122,22 @@ std::optional<std::string> Project::split_clip(const std::string& track_id,
     Clip right = *it;
     right.id = make_id(next_id_++);
     right.source_in_ms = split_source_time_ms;
+    right.timeline_start_ms += split_source_time_ms - it->source_in_ms;
     right.incoming_transition = {};
     it->source_out_ms = split_source_time_ms;
     const std::string new_id = right.id;
     track->clips.insert(std::next(it), std::move(right));
     return new_id;
+}
+
+bool Project::move_clip_to_time(const std::string& track_id, const std::string& clip_id,
+                                std::int64_t timeline_start_ms) {
+    Track* track = find_track(track_id);
+    if (!track || timeline_start_ms < 0) return false;
+    Clip* clip = find_clip(*track, clip_id);
+    if (!clip) return false;
+    clip->timeline_start_ms = timeline_start_ms;
+    return true;
 }
 
 bool Project::move_clip(const std::string& track_id, const std::string& clip_id,
@@ -145,11 +164,11 @@ bool Project::move_clip(const std::string& track_id, const std::string& clip_id,
 std::int64_t Project::duration_ms() const noexcept {
     std::int64_t longest = 0;
     for (const auto& track : tracks_) {
-        std::int64_t position = 0;
         for (const auto& clip : track.clips) {
-            position += clip.source_out_ms - clip.source_in_ms;
+            const auto end = clip.timeline_start_ms +
+                clip.source_out_ms - clip.source_in_ms;
+            longest = std::max(longest, end);
         }
-        longest = std::max(longest, position);
     }
     return longest;
 }
@@ -164,8 +183,8 @@ bool Project::validate(std::string* error) const {
             const auto* asset = find_media(clip.media_id);
             if (!asset) return fail("A clip refers to missing media.");
             if (clip.source_in_ms < 0 || clip.source_out_ms <= clip.source_in_ms ||
-                clip.source_out_ms > asset->duration_ms)
-                return fail("A clip has an invalid source range.");
+                clip.source_out_ms > asset->duration_ms || clip.timeline_start_ms < 0)
+                return fail("A clip has an invalid source range or timeline position.");
             if (!std::isfinite(clip.volume) || clip.volume < 0.0 || clip.volume > 4.0)
                 return fail("A clip volume must be between 0 and 4.");
             if (clip.incoming_transition.duration_ms < 0 ||
