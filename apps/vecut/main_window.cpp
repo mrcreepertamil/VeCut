@@ -6,6 +6,9 @@
 #include <QDragMoveEvent>
 #include <QDropEvent>
 #include <QMimeData>
+#include <QPainter>
+#include <QMouseEvent>
+#include <QScrollArea>
 #include <QAbstractItemView>
 #include <QFileInfo>
 #include <QFrame>
@@ -51,37 +54,7 @@ protected:
     }
 };
 
-class TrackDropListWidget final : public QListWidget {
-public:
-    using QListWidget::QListWidget;
-    std::function<void(const QString&, const QString&)> on_media_dropped;
-protected:
-    void dragEnterEvent(QDragEnterEvent* event) override {
-        if (event->mimeData()->hasFormat(kMediaMimeType)) event->acceptProposedAction();
-        else QListWidget::dragEnterEvent(event);
-    }
-    void dragMoveEvent(QDragMoveEvent* event) override {
-        if (event->mimeData()->hasFormat(kMediaMimeType) && itemAt(event->position().toPoint()))
-            event->acceptProposedAction();
-        else QListWidget::dragMoveEvent(event);
-    }
-    void dropEvent(QDropEvent* event) override {
-        if (!event->mimeData()->hasFormat(kMediaMimeType)) {
-            QListWidget::dropEvent(event);
-            return;
-        }
-        auto* target = itemAt(event->position().toPoint());
-        if (!target) { event->ignore(); return; }
-        const QString media_id = QString::fromUtf8(event->mimeData()->data(kMediaMimeType));
-        const QString track_id = target->data(Qt::UserRole).toString();
-        if (media_id.isEmpty() || track_id.isEmpty() || !on_media_dropped) {
-            event->ignore();
-            return;
-        }
-        on_media_dropped(media_id, track_id);
-        event->acceptProposedAction();
-    }
-};
+
 }
 
 namespace {
@@ -126,6 +99,289 @@ QString media_kind_name(vecut::MediaKind kind) {
     return "Media";
 }
 }
+
+
+class TimelineWidget final : public QWidget {
+public:
+    explicit TimelineWidget(QWidget* parent = nullptr) : QWidget(parent) {
+        setAcceptDrops(true);
+        setMouseTracking(true);
+        setMinimumWidth(900);
+        setMinimumHeight(90);
+        setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+    }
+
+    void setProject(const vecut::Project* project) {
+        project_ = project;
+        refresh();
+    }
+
+    void refresh() {
+        resize(sizeHint());
+        updateGeometry();
+        update();
+    }
+
+    std::function<void(const QString&, const QString&, std::int64_t)> on_media_dropped;
+    std::function<void(const QString&, const QString&, std::int64_t,
+                       std::int64_t, std::int64_t)> on_clip_edited;
+
+    QSize sizeHint() const override {
+        std::int64_t duration = project_ ? project_->duration_ms() : 0;
+        const int content_width = kTrackLabelWidth +
+            static_cast<int>((duration / 1000.0 + 10.0) * kPixelsPerSecond) + 40;
+        const int rows = project_ ? static_cast<int>(project_->tracks().size()) : 0;
+        return QSize(std::max(900, content_width),
+                     kRulerHeight + std::max(1, rows) * kTrackRowHeight + 8);
+    }
+
+protected:
+    void paintEvent(QPaintEvent*) override {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.fillRect(rect(), QColor("#101219"));
+
+        painter.fillRect(QRect(0, 0, width(), kRulerHeight), QColor("#1c202a"));
+        painter.setPen(QColor("#8992a4"));
+        painter.setFont(QFont("Sans Serif", 9, QFont::DemiBold));
+        painter.drawText(QRect(10, 0, kTrackLabelWidth - 18, kRulerHeight),
+                         Qt::AlignVCenter, "TRACK");
+        const int timeline_width = width() - kTrackLabelWidth;
+        const int tick_step = static_cast<int>(5 * kPixelsPerSecond);
+        for (int x = kTrackLabelWidth, seconds = 0; x < width();
+             x += tick_step, seconds += 5) {
+            painter.setPen(QColor("#394150"));
+            painter.drawLine(x, kRulerHeight - 5, x, height());
+            painter.setPen(QColor("#aab2c0"));
+            painter.drawText(QRect(x + 5, 2, tick_step - 8, kRulerHeight - 4),
+                             Qt::AlignVCenter, QString("%1s").arg(seconds));
+        }
+        Q_UNUSED(timeline_width);
+
+        if (!project_ || project_->tracks().empty()) {
+            painter.setPen(QColor("#929aaa"));
+            painter.drawText(QRect(kTrackLabelWidth + 12, kRulerHeight + 8,
+                                   width() - kTrackLabelWidth - 24, 52),
+                             Qt::AlignVCenter, "Add a video or audio track, then drag media here");
+            return;
+        }
+
+        for (std::size_t row = 0; row < project_->tracks().size(); ++row) {
+            const auto& track = project_->tracks()[row];
+            const int y = kRulerHeight + static_cast<int>(row) * kTrackRowHeight;
+            painter.fillRect(QRect(0, y, width(), kTrackRowHeight - 2),
+                             row % 2 == 0 ? QColor("#171b24") : QColor("#141821"));
+            painter.setPen(QColor("#e1e5ee"));
+            painter.setFont(QFont("Sans Serif", 9, QFont::DemiBold));
+            painter.drawText(QRect(10, y + 4, kTrackLabelWidth - 18, 25),
+                             Qt::AlignVCenter,
+                             QString::fromStdString(track.name));
+            painter.setPen(QColor("#7e899b"));
+            painter.setFont(QFont("Sans Serif", 8));
+            painter.drawText(QRect(10, y + 29, kTrackLabelWidth - 18, 20),
+                             Qt::AlignVCenter,
+                             track.kind == vecut::TrackKind::Audio ? "AUDIO" : "VIDEO");
+            painter.setPen(QColor("#303746"));
+            painter.drawLine(kTrackLabelWidth, y, width(), y);
+
+            for (const auto& clip : track.clips) {
+                const auto media = std::find_if(project_->media().begin(),
+                    project_->media().end(), [&](const vecut::MediaAsset& item) {
+                        return item.id == clip.media_id;
+                    });
+                if (media == project_->media().end()) continue;
+                const auto clip_duration = clip.source_out_ms - clip.source_in_ms;
+                const int x = kTrackLabelWidth +
+                    static_cast<int>(clip.timeline_start_ms * kPixelsPerSecond / 1000.0);
+                const int w = std::max(28, static_cast<int>(
+                    clip_duration * kPixelsPerSecond / 1000.0));
+                const QRect clip_rect(x, y + 12, w, 44);
+                QColor fill = media->kind == vecut::MediaKind::Audio
+                    ? QColor("#315b83")
+                    : (media->kind == vecut::MediaKind::Image
+                        ? QColor("#76549a") : QColor("#28734f"));
+                painter.setPen(selected_clip_id_ == QString::fromStdString(clip.id)
+                    ? QPen(QColor("#ffffff"), 2) : QPen(fill.lighter(135), 1));
+                painter.setBrush(fill);
+                painter.drawRoundedRect(clip_rect, 5, 5);
+                painter.setPen(QColor("#ffffff"));
+                painter.setFont(QFont("Sans Serif", 8, QFont::DemiBold));
+                const QString name = QString::fromStdString(media->display_name);
+                const QString text = painter.fontMetrics().elidedText(
+                    name, Qt::ElideRight, std::max(8, w - 18));
+                painter.drawText(clip_rect.adjusted(9, 0, -8, 0),
+                                 Qt::AlignVCenter | Qt::AlignLeft, text);
+                painter.setPen(QPen(QColor("#e6edf7"), 2));
+                painter.drawLine(x + 4, y + 20, x + 4, y + 48);
+                painter.drawLine(x + w - 4, y + 20, x + w - 4, y + 48);
+            }
+        }
+    }
+
+    void dragEnterEvent(QDragEnterEvent* event) override {
+        if (event->mimeData()->hasFormat(kMediaMimeType))
+            event->acceptProposedAction();
+        else
+            event->ignore();
+    }
+
+    void dragMoveEvent(QDragMoveEvent* event) override {
+        if (event->mimeData()->hasFormat(kMediaMimeType) &&
+            track_index_at(event->position().toPoint().y()) >= 0)
+            event->acceptProposedAction();
+        else
+            event->ignore();
+    }
+
+    void dropEvent(QDropEvent* event) override {
+        const QPoint point = event->position().toPoint();
+        const int row = track_index_at(point.y());
+        if (!project_ || row < 0 || !on_media_dropped ||
+            !event->mimeData()->hasFormat(kMediaMimeType)) {
+            event->ignore();
+            return;
+        }
+        const auto& track = project_->tracks()[static_cast<std::size_t>(row)];
+        const auto timeline_ms = static_cast<std::int64_t>(std::max(
+            0.0, (point.x() - kTrackLabelWidth) * 1000.0 / kPixelsPerSecond));
+        on_media_dropped(QString::fromUtf8(
+            event->mimeData()->data(kMediaMimeType)),
+            QString::fromStdString(track.id), timeline_ms);
+        event->acceptProposedAction();
+    }
+
+    void mousePressEvent(QMouseEvent* event) override {
+        if (event->button() != Qt::LeftButton || !project_) {
+            QWidget::mousePressEvent(event);
+            return;
+        }
+        const QPoint point = event->position().toPoint();
+        const int row = track_index_at(point.y());
+        if (row < 0) {
+            selected_clip_id_.clear();
+            update();
+            return;
+        }
+        const auto& track = project_->tracks()[static_cast<std::size_t>(row)];
+        const auto* hit = clip_at(track, point.x(), point.y());
+        if (!hit) {
+            selected_clip_id_.clear();
+            drag_mode_ = DragMode::None;
+            update();
+            return;
+        }
+        selected_clip_id_ = QString::fromStdString(hit->id);
+        drag_track_id_ = QString::fromStdString(track.id);
+        drag_clip_id_ = selected_clip_id_;
+        drag_origin_x_ = point.x();
+        original_start_ms_ = hit->timeline_start_ms;
+        original_in_ms_ = hit->source_in_ms;
+        original_out_ms_ = hit->source_out_ms;
+        const int clip_x = kTrackLabelWidth +
+            static_cast<int>(hit->timeline_start_ms * kPixelsPerSecond / 1000.0);
+        const int clip_width = std::max(28, static_cast<int>(
+            (hit->source_out_ms - hit->source_in_ms) * kPixelsPerSecond / 1000.0));
+        if (point.x() <= clip_x + kTrimHandleWidth)
+            drag_mode_ = DragMode::TrimLeft;
+        else if (point.x() >= clip_x + clip_width - kTrimHandleWidth)
+            drag_mode_ = DragMode::TrimRight;
+        else
+            drag_mode_ = DragMode::Move;
+        update();
+    }
+
+    void mouseMoveEvent(QMouseEvent* event) override {
+        if (drag_mode_ == DragMode::None || !project_ || !on_clip_edited) {
+            QWidget::mouseMoveEvent(event);
+            return;
+        }
+        const auto delta = static_cast<std::int64_t>(std::llround(
+            (event->position().x() - drag_origin_x_) * 1000.0 / kPixelsPerSecond));
+        std::int64_t start = original_start_ms_;
+        std::int64_t source_in = original_in_ms_;
+        std::int64_t source_out = original_out_ms_;
+
+        if (drag_mode_ == DragMode::Move) {
+            start = std::max<std::int64_t>(0, original_start_ms_ + delta);
+        } else if (drag_mode_ == DragMode::TrimLeft) {
+            const auto min_delta = std::max(-original_start_ms_, -original_in_ms_);
+            const auto max_delta = original_out_ms_ - original_in_ms_ - 100;
+            const auto applied = std::clamp(delta, min_delta, max_delta);
+            start = original_start_ms_ + applied;
+            source_in = original_in_ms_ + applied;
+        } else if (drag_mode_ == DragMode::TrimRight) {
+            const auto media = media_for_clip(drag_clip_id_);
+            const auto maximum = media ? media->duration_ms : original_out_ms_;
+            source_out = std::clamp(original_out_ms_ + delta,
+                                    original_in_ms_ + 100, maximum);
+        }
+        on_clip_edited(drag_track_id_, drag_clip_id_, start, source_in, source_out);
+        refresh();
+    }
+
+    void mouseReleaseEvent(QMouseEvent* event) override {
+        if (event->button() == Qt::LeftButton) {
+            drag_mode_ = DragMode::None;
+            unsetCursor();
+        }
+        QWidget::mouseReleaseEvent(event);
+    }
+
+private:
+    enum class DragMode { None, Move, TrimLeft, TrimRight };
+    static constexpr int kTrackLabelWidth = 112;
+    static constexpr int kRulerHeight = 30;
+    static constexpr int kTrackRowHeight = 70;
+    static constexpr int kTrimHandleWidth = 8;
+    static constexpr double kPixelsPerSecond = 80.0;
+
+    int track_index_at(int y) const {
+        if (!project_ || y < kRulerHeight) return -1;
+        const int row = (y - kRulerHeight) / kTrackRowHeight;
+        return row >= 0 && row < static_cast<int>(project_->tracks().size()) ? row : -1;
+    }
+
+    const vecut::Clip* clip_at(const vecut::Track& track, int x, int y) const {
+        const int row_y = kRulerHeight + track_index_at(y) * kTrackRowHeight;
+        if (y < row_y + 12 || y > row_y + 56) return nullptr;
+        for (const auto& clip : track.clips) {
+            const int clip_x = kTrackLabelWidth +
+                static_cast<int>(clip.timeline_start_ms * kPixelsPerSecond / 1000.0);
+            const int clip_width = std::max(28, static_cast<int>(
+                (clip.source_out_ms - clip.source_in_ms) * kPixelsPerSecond / 1000.0));
+            if (x >= clip_x && x <= clip_x + clip_width) return &clip;
+        }
+        return nullptr;
+    }
+
+    const vecut::MediaAsset* media_for_clip(const QString& clip_id) const {
+        if (!project_) return nullptr;
+        for (const auto& track : project_->tracks()) {
+            const auto clip = std::find_if(track.clips.begin(), track.clips.end(),
+                [&](const vecut::Clip& item) {
+                    return QString::fromStdString(item.id) == clip_id;
+                });
+            if (clip != track.clips.end()) {
+                const auto media = std::find_if(project_->media().begin(),
+                    project_->media().end(), [&](const vecut::MediaAsset& item) {
+                        return item.id == clip->media_id;
+                    });
+                return media == project_->media().end() ? nullptr : &*media;
+            }
+        }
+        return nullptr;
+    }
+
+    const vecut::Project* project_ = nullptr;
+    QString selected_clip_id_;
+    QString drag_track_id_;
+    QString drag_clip_id_;
+    DragMode drag_mode_ = DragMode::None;
+    int drag_origin_x_ = 0;
+    std::int64_t original_start_ms_ = 0;
+    std::int64_t original_in_ms_ = 0;
+    std::int64_t original_out_ms_ = 0;
+};
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setWindowTitle("VeCut");
@@ -207,18 +463,31 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     timeline_toolbar->addWidget(add_audio_button_);
     timeline_layout->addLayout(timeline_toolbar);
 
-    track_list_ = new TrackDropListWidget(timeline_panel_);
-    track_list_->setObjectName("trackList");
-    track_list_->setAcceptDrops(true);
-    track_list_->setDragDropMode(QAbstractItemView::DropOnly);
-    static_cast<TrackDropListWidget*>(track_list_)->on_media_dropped =
-        [this](const QString& media_id, const QString& track_id) {
-            add_media_to_track(media_id, track_id);
+    auto* timeline_scroll = new QScrollArea(timeline_panel_);
+    timeline_scroll->setWidgetResizable(false);
+    timeline_scroll->setFrameShape(QFrame::NoFrame);
+    timeline_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    timeline_scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    timeline_widget_ = new TimelineWidget();
+    timeline_widget_->setProject(&project_);
+    timeline_widget_->on_media_dropped =
+        [this](const QString& media_id, const QString& track_id, std::int64_t timeline_ms) {
+            add_media_to_track(media_id, track_id, timeline_ms);
         };
-    track_list_->setMinimumHeight(0);
-    track_list_->setMaximumHeight(180);
-    track_list_->addItem("No tracks yet — add a video or audio track");
-    timeline_layout->addWidget(track_list_);
+    timeline_widget_->on_clip_edited =
+        [this](const QString& track_id, const QString& clip_id, std::int64_t start_ms,
+               std::int64_t source_in_ms, std::int64_t source_out_ms) {
+            const auto track = track_id.toStdString();
+            const auto clip = clip_id.toStdString();
+            if (project_.trim_clip(track, clip, source_in_ms, source_out_ms) &&
+                project_.move_clip_to_time(track, clip, start_ms)) {
+                timeline_widget_->refresh();
+            }
+        };
+    timeline_scroll->setWidget(timeline_widget_);
+    timeline_scroll->setMinimumHeight(110);
+    timeline_scroll->setMaximumHeight(180);
+    timeline_layout->addWidget(timeline_scroll);
     outer->addWidget(timeline_panel_);
 
     status_label_ = new QLabel("C++17 project engine ready · Import metadata probing enabled",
@@ -456,7 +725,8 @@ void MainWindow::refresh_media_item(const QString& media_id) {
     }
 }
 
-void MainWindow::add_media_to_track(const QString& media_id, const QString& track_id) {
+void MainWindow::add_media_to_track(const QString& media_id, const QString& track_id,
+                                    std::int64_t timeline_start_ms) {
     const auto media = std::find_if(project_.media().begin(), project_.media().end(),
         [&](const vecut::MediaAsset& asset) {
             return QString::fromStdString(asset.id) == media_id;
@@ -486,6 +756,7 @@ void MainWindow::add_media_to_track(const QString& media_id, const QString& trac
     clip.media_id = media->id;
     clip.source_in_ms = 0;
     clip.source_out_ms = clip_duration;
+    clip.timeline_start_ms = timeline_start_ms;
     if (!project_.add_clip(track->id, std::move(clip))) {
         status_label_->setText("Could not add this media clip.");
         return;
@@ -497,26 +768,5 @@ void MainWindow::add_media_to_track(const QString& media_id, const QString& trac
 }
 
 void MainWindow::update_track_list() {
-    track_list_->clear();
-    for (const auto& track : project_.tracks()) {
-        const QString kind = track.kind == vecut::TrackKind::Audio ? "AUDIO" : "VIDEO";
-        QStringList clip_names;
-        for (const auto& clip : track.clips) {
-            const auto media = std::find_if(project_.media().begin(), project_.media().end(),
-                [&](const vecut::MediaAsset& asset) { return asset.id == clip.media_id; });
-            if (media != project_.media().end())
-                clip_names.push_back(QString::fromStdString(media->display_name));
-        }
-        const QString clip_summary = clip_names.isEmpty()
-            ? QString("Drop media here") : clip_names.join("  |  ");
-        auto* item = new QListWidgetItem(
-            QString("[%1]  %2     ·     %3 clip(s)\n%4")
-                .arg(kind, QString::fromStdString(track.name))
-                .arg(track.clips.size()).arg(clip_summary), track_list_);
-        item->setData(Qt::UserRole, QString::fromStdString(track.id));
-        item->setSizeHint(QSize(item->sizeHint().width(), 58));
-    }
-    if (project_.tracks().empty()) {
-        track_list_->addItem("No tracks yet — add a video or audio track");
-    }
+    if (timeline_widget_) timeline_widget_->refresh();
 }
