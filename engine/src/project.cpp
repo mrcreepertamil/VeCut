@@ -57,7 +57,10 @@ bool Project::add_clip(const std::string& track_id, Clip clip) {
     if (!track || !asset || clip.id.empty() || find_clip(*track, clip.id)) return false;
     if (clip.source_in_ms < 0 || clip.source_out_ms <= clip.source_in_ms ||
         clip.source_out_ms > asset->duration_ms) return false;
-    if (track->kind == TrackKind::Audio && asset->kind == MediaKind::Image) return false;
+    // Audio tracks accept audio only. Video and overlay tracks accept
+    // video or still-image assets, preventing invalid projects at the model layer.
+    if ((track->kind == TrackKind::Audio && asset->kind != MediaKind::Audio) ||
+        (track->kind != TrackKind::Audio && asset->kind == MediaKind::Audio)) return false;
     if (clip.incoming_transition.duration_ms < 0 ||
         clip.incoming_transition.duration_ms > clip.source_out_ms - clip.source_in_ms) return false;
     if (clip.timeline_start_ms < -1) return false;
