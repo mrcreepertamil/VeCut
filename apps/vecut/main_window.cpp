@@ -7,6 +7,9 @@
 #include <QDropEvent>
 #include <QMimeData>
 #include <QPainter>
+#include <QSizePolicy>
+#include <QPaintEvent>
+#include <QFont>
 #include <QMouseEvent>
 #include <QScrollArea>
 #include <QAbstractItemView>
