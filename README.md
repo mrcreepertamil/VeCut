@@ -12,12 +12,22 @@ The project is moving away from Flutter/Dart and separate platform-language edit
 - **Platform media backends** — selected behind C++ interfaces as the engine grows. The existing Android MediaCodec/OpenGL ES preview is transitional and is not yet the cross-platform renderer.
 - **JavaScript plugins** — optional future third-party plugin scripting only; not used to implement the editor or its UI.
 
+## Responsive application workspace
+
+The Qt UI now switches layout based on available window width:
+
+- **Phone portrait (narrow than 720 px):** media bin above the preview, with a compact timeline below. Track buttons use shorter labels and the window can shrink to phone-sized dimensions.
+- **Desktop landscape (720 px and wider):** media bin beside the larger preview, with the timeline spanning the bottom.
+- The same C++ widgets and project state are used in both layouts; this is a responsive rearrangement, not separate Android/iOS and PC editor implementations.
+
+The mobile layout is designed for portrait use, but Android/iOS packaging, touch-device testing, and platform-specific file-picker integration still need to be built and verified with the appropriate Qt kits.
+
 ## C++ application and engine
 
 - `engine/` contains the platform-independent C++17 project model.
 - The model represents media assets, video/audio/overlay tracks, clips, source trim ranges, incoming transitions, clip volume, splitting, clip ordering and project validation.
 - `apps/vecut/` contains the Qt Widgets application, written entirely in C++.
-- The desktop workspace now has a media-bin import dialog, selected-media information, preview placeholder, and controls to create video/audio tracks.
+- The workspace has a media-bin import dialog, selected-media information, preview placeholder, and controls to create video/audio tracks.
 - Media files are listed in the project, but duration probing, placing clips on tracks, decoding, playback and export are not connected yet. The UI deliberately does not invent media durations.
 - Engine unit tests cover clip ordering (including moving to the end), trimming, transitions, splitting, validation and removal.
 
@@ -50,4 +60,4 @@ The old Flutter/Dart prototype remains in `.oldproto/` as a temporary reference.
 
 ## Current status
 
-The shared C++17 project model, first engine tests, and initial Qt media-bin/track workspace are in place. No local or CI build has been verified for this update, and no cross-platform release builds have been verified. Do not treat the five platform targets as completed until each has been built, run and tested on its own toolchain.
+The shared C++17 project model, first engine tests, and responsive Qt media-bin/track workspace are in place. No local or CI build has been verified for this update, and no cross-platform release builds have been verified. Do not treat the five platform targets as completed until each has been built, run and tested on its own toolchain.
