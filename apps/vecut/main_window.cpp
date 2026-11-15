@@ -1,6 +1,13 @@
 #include "main_window.h"
 
 #include <QFileDialog>
+#include <QFile>
+#include <QSaveFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
+#include <QFileInfo>
 #include <QDrag>
 #include <QDragEnterEvent>
 #include <QDragMoveEvent>
@@ -411,9 +418,13 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     toolbar->addWidget(brand);
     toolbar->addStretch();
 
+    auto* open_button = new QPushButton("Open project", root);
+    auto* save_button = new QPushButton("Save project", root);
     auto* import_button = new QPushButton("Import media", root);
     import_button->setObjectName("primaryButton");
     import_button->setMinimumHeight(42);
+    toolbar->addWidget(open_button);
+    toolbar->addWidget(save_button);
     toolbar->addWidget(import_button);
     outer->addLayout(toolbar);
 
@@ -552,6 +563,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     status_label_->setStyleSheet("color:#9aa1af;font-size:11px;");
     outer->addWidget(status_label_);
 
+    connect(open_button, &QPushButton::clicked, this, [this] { open_project(); });
+    connect(save_button, &QPushButton::clicked, this, [this] { save_project(); });
     connect(import_button, &QPushButton::clicked, this, [this] { import_media(); });
     connect(media_list_, &QListWidget::currentItemChanged, this,
             [this](QListWidgetItem*, QListWidgetItem*) { update_media_details(); });
@@ -859,6 +872,262 @@ void MainWindow::add_media_to_track(const QString& media_id, const QString& trac
     status_label_->setText(QString("Added %1 to %2.")
         .arg(QString::fromStdString(media->display_name),
              QString::fromStdString(track->name)));
+}
+
+
+void MainWindow::save_project(bool save_as) {
+    if (current_project_path_.isEmpty() || save_as) {
+        const QString path = QFileDialog::getSaveFileName(
+            this, "Save VeCut project", current_project_path_.isEmpty()
+                ? QString("Untitled.vecut") : current_project_path_,
+            "VeCut project (*.vecut)");
+        if (path.isEmpty()) return;
+        current_project_path_ = path;
+    }
+
+    QJsonObject document;
+    document.insert("format", "VeCutProject");
+    document.insert("version", 1);
+    document.insert("name", QString::fromStdString(project_.name()));
+
+    QJsonArray media_items;
+    for (const auto& asset : project_.media()) {
+        QJsonObject item;
+        item.insert("id", QString::fromStdString(asset.id));
+        item.insert("uri", QString::fromStdString(asset.uri));
+        item.insert("displayName", QString::fromStdString(asset.display_name));
+        item.insert("kind", static_cast<int>(asset.kind));
+        item.insert("durationMs", static_cast<double>(asset.duration_ms));
+        item.insert("fileSizeBytes", static_cast<double>(asset.file_size_bytes));
+        item.insert("width", asset.width);
+        item.insert("height", asset.height);
+        media_items.append(item);
+    }
+    document.insert("media", media_items);
+
+    QJsonArray track_items;
+    for (const auto& track : project_.tracks()) {
+        QJsonObject item;
+        item.insert("id", QString::fromStdString(track.id));
+        item.insert("name", QString::fromStdString(track.name));
+        item.insert("kind", static_cast<int>(track.kind));
+        item.insert("muted", track.muted);
+        item.insert("visible", track.visible);
+
+        QJsonArray clips;
+        for (const auto& clip : track.clips) {
+            QJsonObject clip_item;
+            clip_item.insert("id", QString::fromStdString(clip.id));
+            clip_item.insert("mediaId", QString::fromStdString(clip.media_id));
+            clip_item.insert("sourceInMs", static_cast<double>(clip.source_in_ms));
+            clip_item.insert("sourceOutMs", static_cast<double>(clip.source_out_ms));
+            clip_item.insert("timelineStartMs", static_cast<double>(clip.timeline_start_ms));
+            clip_item.insert("transitionKind",
+                             static_cast<int>(clip.incoming_transition.kind));
+            clip_item.insert("transitionDurationMs",
+                             static_cast<double>(clip.incoming_transition.duration_ms));
+            clip_item.insert("volume", clip.volume);
+            clips.append(clip_item);
+        }
+        item.insert("clips", clips);
+        track_items.append(item);
+    }
+    document.insert("tracks", track_items);
+
+    QSaveFile file(current_project_path_);
+    if (!file.open(QIODevice::WriteOnly)) {
+        status_label_->setText(QString("Could not save project: %1").arg(file.errorString()));
+        return;
+    }
+    const QByteArray bytes = QJsonDocument(document).toJson(QJsonDocument::Indented);
+    if (file.write(bytes) != bytes.size() || !file.commit()) {
+        status_label_->setText(QString("Could not finish saving project: %1")
+                                   .arg(file.errorString()));
+        return;
+    }
+    setWindowTitle(QString("VeCut — %1").arg(QFileInfo(current_project_path_).fileName()));
+    status_label_->setText(QString("Project saved: %1").arg(current_project_path_));
+}
+
+void MainWindow::open_project() {
+    const QString path = QFileDialog::getOpenFileName(
+        this, "Open VeCut project", QString(), "VeCut project (*.vecut);;JSON files (*.json)");
+    if (path.isEmpty()) return;
+
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        status_label_->setText(QString("Could not open project: %1").arg(file.errorString()));
+        return;
+    }
+    QJsonParseError parse_error;
+    const QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &parse_error);
+    if (parse_error.error != QJsonParseError::NoError || !document.isObject()) {
+        status_label_->setText(QString("Invalid project file: %1").arg(parse_error.errorString()));
+        return;
+    }
+
+    const QJsonObject root = document.object();
+    if (root.value("format").toString() != "VeCutProject" ||
+        root.value("version").toInt(-1) != 1) {
+        status_label_->setText("Unsupported VeCut project format or version.");
+        return;
+    }
+
+    auto read_integer = [](const QJsonObject& object, const QString& key,
+                           qint64 fallback = 0) -> qint64 {
+        const QJsonValue value = object.value(key);
+        if (!value.isDouble()) return fallback;
+        const double number = value.toDouble();
+        if (!std::isfinite(number) ||
+            number < static_cast<double>(std::numeric_limits<qint64>::min()) ||
+            number > static_cast<double>(std::numeric_limits<qint64>::max()))
+            return fallback;
+        return static_cast<qint64>(number);
+    };
+
+    vecut::Project loaded(root.value("name").toString("Untitled Project").toStdString());
+    const QJsonArray media_items = root.value("media").toArray();
+    for (const QJsonValue& value : media_items) {
+        if (!value.isObject()) {
+            status_label_->setText("Project contains an invalid media entry.");
+            return;
+        }
+        const QJsonObject item = value.toObject();
+        const int kind = item.value("kind").toInt(-1);
+        if (kind < static_cast<int>(vecut::MediaKind::Video) ||
+            kind > static_cast<int>(vecut::MediaKind::Image)) {
+            status_label_->setText("Project contains an unknown media type.");
+            return;
+        }
+        vecut::MediaAsset asset;
+        asset.id = item.value("id").toString().toStdString();
+        asset.uri = item.value("uri").toString().toStdString();
+        asset.display_name = item.value("displayName").toString().toStdString();
+        asset.kind = static_cast<vecut::MediaKind>(kind);
+        asset.duration_ms = read_integer(item, "durationMs", -1);
+        asset.file_size_bytes = static_cast<std::uint64_t>(
+            std::max<qint64>(0, read_integer(item, "fileSizeBytes")));
+        asset.width = static_cast<int>(read_integer(item, "width", -1));
+        asset.height = static_cast<int>(read_integer(item, "height", -1));
+        if (!loaded.add_media(std::move(asset))) {
+            status_label_->setText("Project contains invalid or duplicate media entries.");
+            return;
+        }
+    }
+
+    const QJsonArray track_items = root.value("tracks").toArray();
+    for (const QJsonValue& value : track_items) {
+        if (!value.isObject()) {
+            status_label_->setText("Project contains an invalid track entry.");
+            return;
+        }
+        const QJsonObject item = value.toObject();
+        const int kind = item.value("kind").toInt(-1);
+        if (kind < static_cast<int>(vecut::TrackKind::Video) ||
+            kind > static_cast<int>(vecut::TrackKind::Overlay)) {
+            status_label_->setText("Project contains an unknown track type.");
+            return;
+        }
+        vecut::Track track;
+        track.id = item.value("id").toString().toStdString();
+        track.name = item.value("name").toString().toStdString();
+        track.kind = static_cast<vecut::TrackKind>(kind);
+        track.muted = item.value("muted").toBool(false);
+        track.visible = item.value("visible").toBool(true);
+        if (!loaded.add_track(std::move(track))) {
+            status_label_->setText("Project contains duplicate or invalid tracks.");
+            return;
+        }
+    }
+
+    for (int track_index = 0; track_index < track_items.size(); ++track_index) {
+        const QJsonObject track_item = track_items.at(track_index).toObject();
+        const QString track_id = track_item.value("id").toString();
+        const QJsonArray clips = track_item.value("clips").toArray();
+        for (const QJsonValue& clip_value : clips) {
+            if (!clip_value.isObject()) {
+                status_label_->setText("Project contains an invalid clip entry.");
+                return;
+            }
+            const QJsonObject item = clip_value.toObject();
+            const int transition_kind = item.value("transitionKind").toInt(0);
+            if (transition_kind < static_cast<int>(vecut::TransitionKind::None) ||
+                transition_kind > static_cast<int>(vecut::TransitionKind::SlideRightToLeft)) {
+                status_label_->setText("Project contains an unknown transition type.");
+                return;
+            }
+            vecut::Clip clip;
+            clip.id = item.value("id").toString().toStdString();
+            clip.media_id = item.value("mediaId").toString().toStdString();
+            clip.source_in_ms = read_integer(item, "sourceInMs", -1);
+            clip.source_out_ms = read_integer(item, "sourceOutMs", -1);
+            clip.timeline_start_ms = read_integer(item, "timelineStartMs", -1);
+            clip.incoming_transition.kind =
+                static_cast<vecut::TransitionKind>(transition_kind);
+            clip.incoming_transition.duration_ms =
+                read_integer(item, "transitionDurationMs", -1);
+            clip.volume = item.value("volume").toDouble(1.0);
+            if (!loaded.add_clip(track_id.toStdString(), std::move(clip))) {
+                status_label_->setText("Project contains a clip with invalid media, timing or track data.");
+                return;
+            }
+        }
+    }
+
+    std::string validation_error;
+    if (!loaded.validate(&validation_error)) {
+        status_label_->setText(QString("Project validation failed: %1")
+                                   .arg(QString::fromStdString(validation_error)));
+        return;
+    }
+
+    preview_player_->stop();
+    preview_player_->setSource(QUrl());
+    project_ = std::move(loaded);
+    current_project_path_ = path;
+    setWindowTitle(QString("VeCut — %1").arg(QFileInfo(path).fileName()));
+    media_list_->clear();
+
+    unsigned int max_media_id = 0;
+    unsigned int max_clip_id = 0;
+    for (const auto& asset : project_.media()) {
+        const QString id = QString::fromStdString(asset.id);
+        const QFileInfo source_info(QString::fromStdString(asset.uri));
+        auto* item = new QListWidgetItem(
+            media_kind_name(asset.kind) + "  ·  " +
+            QString::fromStdString(asset.display_name), media_list_);
+        item->setData(Qt::UserRole, id);
+        if (asset.kind == vecut::MediaKind::Image) {
+            QImageReader reader(QString::fromStdString(asset.uri));
+            const QSize original_size = reader.size();
+            if (original_size.isValid()) {
+                reader.setScaledSize(original_size.scaled(QSize(112, 64), Qt::KeepAspectRatio));
+                const QImage thumbnail = reader.read();
+                if (!thumbnail.isNull()) item->setIcon(QIcon(QPixmap::fromImage(thumbnail)));
+            }
+        }
+        if (source_info.exists()) probe_media(id, source_info.absoluteFilePath(), asset.kind);
+        bool ok = false;
+        const uint media_number = id.startsWith("media-")
+            ? id.mid(6).toUInt(&ok) : 0;
+        if (ok) max_media_id = std::max(max_media_id, media_number);
+    }
+    for (const auto& track : project_.tracks()) {
+        if (track.kind == vecut::TrackKind::Audio) ++audio_track_count_;
+        else ++video_track_count_;
+        for (const auto& clip : track.clips) {
+            const QString id = QString::fromStdString(clip.id);
+            bool ok = false;
+            const uint clip_number = id.startsWith("clip-")
+                ? id.mid(5).toUInt(&ok) : 0;
+            if (ok) max_clip_id = std::max(max_clip_id, clip_number);
+        }
+    }
+    next_media_id_ = max_media_id + 1;
+    next_clip_id_ = max_clip_id + 1;
+    update_track_list();
+    if (media_list_->count() > 0) media_list_->setCurrentRow(0);
+    status_label_->setText(QString("Opened project: %1").arg(path));
 }
 
 void MainWindow::update_track_list() {
