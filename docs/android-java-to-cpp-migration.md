@@ -77,3 +77,18 @@ Frames are still delivered as QImages by Qt Multimedia and uploaded to a GL
 texture. Actual Android/iOS device builds, context creation, shader compilation,
 orientation, lifecycle and performance must be verified on hardware before
 claiming platform support.
+
+
+## GPU preview effects update
+
+The Qt OpenGL preview now receives the original decoded/still frame and applies the
+selected clip's preview transforms in GLSL: opacity fades, wipe reveal, slide,
+zoom, pan, and rotation. The shader also preserves the source aspect ratio and
+continues to apply the selected color filter. This removes the previous
+QPainter-based selected-clip composition step from the active preview path.
+
+The implementation still uploads QImage frames to an OpenGL texture; it is not
+zero-copy decoder texture interop, a multi-layer timeline compositor, or an
+export renderer. Fade/dissolve still reveal against the preview background rather
+than blending two adjacent clips. Runtime shader compilation and device behavior
+must be verified on Android and iOS hardware.
