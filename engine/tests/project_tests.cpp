@@ -34,18 +34,21 @@ int main() {
     first.source_in_ms = 0;
     first.source_out_ms = 4000;
     assert(project.add_clip("video-1", first));
+    assert(project.tracks().front().clips.back().timeline_start_ms == 0);
 
     Clip second = first;
     second.id = "clip-2";
     second.source_in_ms = 4000;
     second.source_out_ms = 8000;
     assert(project.add_clip("video-1", second));
+    assert(project.tracks().front().clips.back().timeline_start_ms == 4000);
 
     Clip third = first;
     third.id = "clip-3";
     third.source_in_ms = 8000;
     third.source_out_ms = 10000;
     assert(project.add_clip("video-1", third));
+    assert(project.tracks().front().clips.back().timeline_start_ms == 8000);
 
     // Moving a clip to the final index must remain within vector bounds.
     assert(project.move_clip("video-1", "clip-1", 2));
