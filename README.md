@@ -58,6 +58,28 @@ ctest --test-dir build-engine --output-on-failure
 
 Use the Qt kit and CMake toolchain appropriate to the target platform. iOS builds require macOS, Xcode, the Qt iOS kit and Apple signing/deployment setup; Android builds require the Android Qt kit, SDK and NDK. They are not produced by a desktop build.
 
+## Install a test APK on an Android phone (no PC required)
+
+The **Android APK** GitHub Actions workflow builds the shared C++/Qt app for
+64-bit ARM Android and uploads an installable APK artifact when the build
+succeeds.
+
+1. Open this repository on GitHub and sign in.
+2. Open **Actions** → **Android APK**.
+3. Choose the latest run for the `main` branch and wait until it finishes
+   successfully.
+4. Open that run's **Artifacts** section and download
+   `VeCut-Android-ARM64`.
+5. On your phone, open the downloaded ZIP, extract
+   `VeCut-android-arm64.apk`, then tap the APK to install it.
+6. If Android asks, allow your browser or file manager to install apps from
+   that source. Only install APKs built from this repository's trusted workflow.
+
+The artifact also includes a SHA-256 checksum file. Artifacts are retained for
+14 days, so download the APK before it expires. The first Android build must
+succeed before an installable APK is available. This workflow targets ARM64;
+it does not yet prove compatibility or performance on every device.
+
 ## Android transition project
 
 `native-android/` is the existing Android prototype retained during migration. Its Java activity and Android-specific media classes are transitional and have **not** yet been replaced by the C++/Qt application. The Android CMake target also compiles the shared C++ project model. The existing prototype preview and timeline are not yet feature parity with the cross-platform app.
