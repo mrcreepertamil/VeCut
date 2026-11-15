@@ -115,6 +115,17 @@ bool Project::set_transition(const std::string& track_id, const std::string& cli
     return true;
 }
 
+bool Project::set_clip_volume(const std::string& track_id, const std::string& clip_id,
+                              double volume) {
+    if (!std::isfinite(volume) || volume < 0.0 || volume > 4.0) return false;
+    Track* track = find_track(track_id);
+    if (!track) return false;
+    Clip* clip = find_clip(*track, clip_id);
+    if (!clip) return false;
+    clip->volume = volume;
+    return true;
+}
+
 std::optional<std::string> Project::split_clip(const std::string& track_id,
                                                 const std::string& clip_id,
                                                 std::int64_t split_source_time_ms) {
