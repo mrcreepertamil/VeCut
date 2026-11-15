@@ -31,9 +31,9 @@ The mobile layout is designed for portrait use, but Android/iOS packaging, touch
 - Qt Multimedia asynchronously probes audio/video duration; Qt Image I/O reads still-image dimensions and thumbnails. Unknown durations remain unknown rather than being guessed.
 - Media-bin items can be dragged onto compatible audio/video tracks at a chosen timeline position. Still images use a five-second default clip duration; video/audio drops wait for duration probing to finish.
 - Projects can be saved and reopened as versioned `.vecut` JSON documents. The C++ Qt editor persists media references and metadata, track settings, clip timing and trims, transitions, and volume; project loading validates the structure before replacing the current project.
-- The timeline renders a time ruler and visual clip blocks on separate track lanes. Drag a clip body horizontally to reposition it; drag either edge to trim the source range. Select a clip to preview its source, then use the native Split, Trim, Transition, and Remove clip controls. Split can use the preview playhead as its initial split point, and transition choices are stored in the shared C++ project model.
+- The timeline renders a time ruler and visual clip blocks on separate track lanes. Drag a clip body horizontally to reposition it; drag either edge to trim the source range. Select a clip to preview its source, then use the native Split, Trim, Transition, Volume, and Remove clip controls. Per-clip gain (0×–4×) is validated by the C++ project model and saved in `.vecut` projects. Split can use the preview playhead as its initial split point, and transition choices are stored in the shared C++ project model.
 - Timeline-synchronized preview, clip dragging between different tracks, undo/redo and export are still unfinished.
-- Engine unit tests cover clip ordering (including moving to the end), trimming, transitions, splitting, validation and removal.
+- Engine unit tests cover clip ordering (including moving to the end), trimming, transitions, per-clip volume validation, splitting, validation and removal.
 
 ## Build
 
