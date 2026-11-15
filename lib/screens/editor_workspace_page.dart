@@ -37,6 +37,9 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
   double _overlayScale = 1.0;
   int _overlayStartMs = 0;
   int _overlayDurationMs = 5000;
+  int _effectMode = 0;
+  int _fadeInMs = 0;
+  int _fadeOutMs = 0;
   String? _audioPath;
   String? _overlayImagePath;
   String? _overlayVideoPath;
@@ -80,8 +83,13 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
 
   Duration get _duration => _controller?.value.duration ?? Duration.zero;
 
+  void _onVideoTick() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    _controller?.removeListener(_onVideoTick);
     _controller?.dispose();
     _audioController?.dispose();
     _overlayVideoController?.dispose();
@@ -206,10 +214,12 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
     final next = VideoPlayerController.file(File(path));
     try {
       await next.initialize();
+      _controller?.removeListener(_onVideoTick);
       await _controller?.dispose();
       if (!mounted) { await next.dispose(); return; }
       setState(() {
         _controller = next;
+        next.addListener(_onVideoTick);
         _videoPath = path;
         _trimRange = RangeValues(0, next.value.duration.inMilliseconds.toDouble());
         _status = 'Selected ' + path.split(Platform.pathSeparator).last;
@@ -319,6 +329,156 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
     if (mounted) setState(() {});
   }
 
+
+  Future<void> _showEffectsDialog() async {
+    const effects = [
+      'Normal', 'Monochrome', 'Warm', 'Cool',
+      'Sepia', 'Vintage', 'Invert', 'High contrast',
+    ];
+    final selected = await showModalBottomSheet<int>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const ListTile(title: Text('Video effects'), subtitle: Text('Choose a preview and export effect')),
+            for (var i = 0; i < effects.length; i++)
+              ListTile(
+                leading: Icon(i == _effectMode ? Icons.check_circle : Icons.circle_outlined),
+                title: Text(effects[i]),
+                onTap: () => Navigator.pop(ctx, i),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (selected != null && mounted) {
+      setState(() {
+        _effectMode = selected;
+        _status = '${effects[selected]} effect selected.';
+      });
+    }
+  }
+
+  Future<void> _showFadeDialog() async {
+    var fadeIn = _fadeInMs.toDouble();
+    var fadeOut = _fadeOutMs.toDouble();
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, updateSheet) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Fade transitions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                Row(children: [const Expanded(child: Text('Fade in')), Text('${fadeIn.round()} ms')]),
+                Slider(value: fadeIn, min: 0, max: 3000, divisions: 30, onChanged: (v) => updateSheet(() => fadeIn = v)),
+                Row(children: [const Expanded(child: Text('Fade out')), Text('${fadeOut.round()} ms')]),
+                Slider(value: fadeOut, min: 0, max: 3000, divisions: 30, onChanged: (v) => updateSheet(() => fadeOut = v)),
+                const Text('Set a duration to enable that fade. These settings are included in MP4 export.', style: TextStyle(fontSize: 11, color: Colors.white60)),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () {
+                      setState(() {
+                        _fadeInMs = fadeIn.round();
+                        _fadeOutMs = fadeOut.round();
+                        _status = 'Fade transitions updated.';
+                      });
+                      Navigator.pop(ctx);
+                    },
+                    child: const Text('Apply fades'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<double>? get _effectMatrix {
+    switch (_effectMode) {
+      case 1:
+        return <double>[
+          .299, .587, .114, 0, 0,
+          .299, .587, .114, 0, 0,
+          .299, .587, .114, 0, 0,
+          0, 0, 0, 1, 0,
+        ];
+      case 2:
+        return <double>[
+          1.08, 0, 0, 0, .025,
+          0, .99, 0, 0, 0,
+          0, 0, .90, 0, 0,
+          0, 0, 0, 1, 0,
+        ];
+      case 3:
+        return <double>[
+          .90, 0, 0, 0, 0,
+          0, .99, 0, 0, 0,
+          0, 0, 1.08, 0, .02,
+          0, 0, 0, 1, 0,
+        ];
+      case 4:
+        return <double>[
+          .393, .769, .189, 0, 0,
+          .349, .686, .168, 0, 0,
+          .272, .534, .131, 0, 0,
+          0, 0, 0, 1, 0,
+        ];
+      case 5:
+        return <double>[
+          .88, .10, .02, 0, .02,
+          .06, .88, .06, 0, .01,
+          .02, .10, .72, 0, 0,
+          0, 0, 0, 1, 0,
+        ];
+      case 6:
+        return <double>[
+          -1, 0, 0, 0, 1,
+          0, -1, 0, 0, 1,
+          0, 0, -1, 0, 1,
+          0, 0, 0, 1, 0,
+        ];
+      case 7:
+        return <double>[
+          1.35, 0, 0, 0, -.175,
+          0, 1.35, 0, 0, -.175,
+          0, 0, 1.35, 0, -.175,
+          0, 0, 0, 1, 0,
+        ];
+      default:
+        return null;
+    }
+  }
+
+  String _buildVideoFilters(double clipDuration) {
+    final filters = <String>[];
+    switch (_effectMode) {
+      case 1: filters.add('hue=s=0'); break;
+      case 2: filters.add('colorbalance=rs=0.08:gs=0.02:bs=-0.08'); break;
+      case 3: filters.add('colorbalance=rs=-0.08:bs=0.08'); break;
+      case 4: filters.add('colorchannelmixer=rr=0.393:rg=0.769:rb=0.189:gr=0.349:gg=0.686:gb=0.168:br=0.272:bg=0.534:bb=0.131'); break;
+      case 5: filters.add('eq=saturation=0.65:contrast=1.12:brightness=0.02'); break;
+      case 6: filters.add('negate'); break;
+      case 7: filters.add('eq=contrast=1.35'); break;
+    }
+    if (_fadeInMs > 0) filters.add('fade=t=in:st=0:d=${(_fadeInMs / 1000).toStringAsFixed(2)}');
+    if (_fadeOutMs > 0) {
+      final duration = (_fadeOutMs / 1000).toStringAsFixed(2);
+      final start = (clipDuration - _fadeOutMs / 1000).clamp(0, clipDuration).toStringAsFixed(2);
+      filters.add('fade=t=out:st=$start:d=$duration');
+    }
+    return filters.join(',');
+  }
+
   String _timestamp(Duration value) {
     final minutes = value.inMinutes.remainder(60).toString().padLeft(2, '0');
     final seconds = value.inSeconds.remainder(60).toString().padLeft(2, '0');
@@ -348,8 +508,18 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
       final directory = await getApplicationDocumentsDirectory();
       final output =
           '${directory.path}/${DateTime.now().millisecondsSinceEpoch}_ve_cut_export.mp4';
+      final clipDuration = end - start;
+      final videoFilters = _buildVideoFilters(clipDuration);
+      final audioFilters = <String>[];
+      if (_fadeInMs > 0) audioFilters.add('afade=t=in:st=0:d=${(_fadeInMs / 1000).toStringAsFixed(2)}');
+      if (_fadeOutMs > 0) {
+        final fadeStart = (clipDuration - _fadeOutMs / 1000).clamp(0, clipDuration).toStringAsFixed(2);
+        audioFilters.add('afade=t=out:st=$fadeStart:d=${(_fadeOutMs / 1000).toStringAsFixed(2)}');
+      }
+      final vf = videoFilters.isEmpty ? '' : '-vf "$videoFilters" ';
+      final af = audioFilters.isEmpty ? '' : '-af "${audioFilters.join(',')}" ';
       final command = '-y -ss $start -to $end -i ${_quotePath(input)} '
-          '-c:v mpeg4 -q:v 3 -c:a aac -movflags +faststart ${_quotePath(output)}';
+          '$vf$af-c:v mpeg4 -q:v 3 -c:a aac -movflags +faststart ${_quotePath(output)}';
       final session = await FFmpegKit.execute(command);
       final returnCode = await session.getReturnCode();
 
@@ -428,7 +598,7 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                   ? Stack(
                       alignment: Alignment.center,
                       children: [
-                        Center(child: AspectRatio(aspectRatio: controller!.value.aspectRatio, child: VideoPlayer(controller))),
+                        Center(child: AspectRatio(aspectRatio: controller!.value.aspectRatio, child: _effectMatrix == null ? VideoPlayer(controller) : ColorFiltered(colorFilter: ColorFilter.matrix(_effectMatrix!), child: VideoPlayer(controller)))),
                         if (overlayVisible && _overlayImagePath != null)
                           Positioned(
                             left: (_overlayX * 220).clamp(0, 220).toDouble(),
@@ -445,7 +615,7 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                             height: 85 * _overlayScale,
                             child: ClipRRect(borderRadius: BorderRadius.circular(8), child: VideoPlayer(_overlayVideoController!)),
                           ),
-                        if (overlayVisible && _overlayText != null)
+                        if (_fadeInMs > 0 || _fadeOutMs > 0)\n                          Positioned.fill(\n                            child: IgnorePointer(\n                              child: ColoredBox(\n                                color: Colors.black.withOpacity(\n                                  [\n                                    _fadeInMs > 0 ? (1 - currentPosition.inMilliseconds / _fadeInMs).clamp(0.0, 1.0) : 0.0,\n                                    _fadeOutMs > 0 ? ((currentPosition.inMilliseconds - (_duration.inMilliseconds - _fadeOutMs)) / _fadeOutMs).clamp(0.0, 1.0) : 0.0,\n                                  ].reduce((a, b) => a > b ? a : b),\n                                ),\n                              ),\n                            ),\n                          ),\n                        if (overlayVisible && _overlayText != null)
                           Positioned(
                             left: (_overlayX * 220).clamp(0, 220),
                             top: (_overlayY * 130).clamp(0, 130),
