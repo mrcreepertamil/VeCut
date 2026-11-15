@@ -30,13 +30,23 @@ public final class GlVideoPreview {
     private boolean resumeAfterLifecyclePause;
     private Runnable playbackEndedCallback;
     private volatile int filterMode;
+    private volatile boolean fadeInEnabled;
+    private volatile boolean fadeOutEnabled;
+    private volatile int fadeDurationMs = 500;
     private volatile boolean transitionPending;
     private volatile long currentPositionMs;
 
     /** 0=normal, 1=monochrome, 2=warm, 3=cool. */
     public void setFilterMode(int mode) {
-        filterMode = Math.max(0, Math.min(3, mode));
+        filterMode = Math.max(0, Math.min(7, mode));
         view.requestRender();
+    }
+
+    /** Configure preview-only fades at the beginning and end of each decoded clip. */
+    public void setFadeSettings(boolean fadeIn, boolean fadeOut, int durationMs) {
+        fadeInEnabled = fadeIn;
+        fadeOutEnabled = fadeOut;
+        fadeDurationMs = Math.max(100, Math.min(3000, durationMs));
     }
 
     public GlVideoPreview(Context context) {
@@ -152,26 +162,34 @@ public final class GlVideoPreview {
     }
 
     private void startDecoder(android.net.Uri uri, long seekPositionMs) {
+        main.post(() -> view.setAlpha(fadeInEnabled ? 0f : 1f));
         player.play(uri, decoderSurface, new CodecVideoPlayer.Listener() {
             @Override public void onPrepared() {
-                if (transitionPending) {
-                    main.post(() -> {
-                        transitionPending = false;
-                        view.animate().alpha(1f).setDuration(160).start();
-                    });
-                }
+                main.post(() -> {
+                    if (fadeInEnabled) {
+                        view.animate().alpha(1f).setDuration(fadeDurationMs).start();
+                    } else {
+                        view.setAlpha(1f);
+                    }
+                    transitionPending = false;
+                });
             }
             @Override public void onCompleted() {
                 main.post(() -> {
-                    if (playlistIndex + 1 < playlist.size() && hasVideo) {
-                        view.animate().alpha(0f).setDuration(160).withEndAction(() -> {
+                    Runnable finish = () -> {
+                        if (playlistIndex + 1 < playlist.size() && hasVideo) {
                             playlistIndex++;
                             lastUri = playlist.get(playlistIndex);
-                            transitionPending = true;
                             startDecoder(lastUri);
-                        }).start();
-                    } else if (playbackEndedCallback != null) {
-                        playbackEndedCallback.run();
+                        } else if (playbackEndedCallback != null) {
+                            playbackEndedCallback.run();
+                        }
+                    };
+                    if (fadeOutEnabled) {
+                        view.animate().alpha(0f).setDuration(fadeDurationMs)
+                                .withEndAction(finish).start();
+                    } else {
+                        finish.run();
                     }
                 });
             }
@@ -334,5 +352,9 @@ public final class GlVideoPreview {
             "if(uFilter==1){ float g=dot(c.rgb,vec3(0.299,0.587,0.114)); c.rgb=vec3(g); } " +
             "else if(uFilter==2){ c.r=min(1.0,c.r*1.08+0.025); c.g*=0.99; c.b*=0.90; } " +
             "else if(uFilter==3){ c.r*=0.90; c.g*=0.99; c.b=min(1.0,c.b*1.08+0.02); } " +
+            "else if(uFilter==4){ vec3 s=vec3(dot(c.rgb,vec3(0.393,0.769,0.189)),dot(c.rgb,vec3(0.349,0.686,0.168)),dot(c.rgb,vec3(0.272,0.534,0.131))); c.rgb=min(s,vec3(1.0)); } " +
+            "else if(uFilter==5){ float g=dot(c.rgb,vec3(0.299,0.587,0.114)); c.rgb=mix(vec3(g),c.rgb,0.55)*vec3(1.08,1.00,0.88); c.rgb=(c.rgb-0.5)*1.12+0.5; } " +
+            "else if(uFilter==6){ c.rgb=vec3(1.0)-c.rgb; } " +
+            "else if(uFilter==7){ c.rgb=clamp((c.rgb-0.5)*1.35+0.5,0.0,1.0); } " +
             "gl_FragColor=c; }";
 }
