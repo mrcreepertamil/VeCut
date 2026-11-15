@@ -30,6 +30,7 @@ public final class GlVideoPreview {
     private boolean resumeAfterLifecyclePause;
     private Runnable playbackEndedCallback;
     private volatile int filterMode;
+    private volatile boolean transitionPending;
 
     /** 0=normal, 1=monochrome, 2=warm, 3=cool. */
     public void setFilterMode(int mode) {
@@ -139,13 +140,23 @@ public final class GlVideoPreview {
 
     private void startDecoder(android.net.Uri uri) {
         player.play(uri, decoderSurface, new CodecVideoPlayer.Listener() {
-            @Override public void onPrepared() { }
+            @Override public void onPrepared() {
+                if (transitionPending) {
+                    main.post(() -> {
+                        transitionPending = false;
+                        view.animate().alpha(1f).setDuration(160).start();
+                    });
+                }
+            }
             @Override public void onCompleted() {
                 main.post(() -> {
                     if (playlistIndex + 1 < playlist.size() && hasVideo) {
-                        playlistIndex++;
-                        lastUri = playlist.get(playlistIndex);
-                        startDecoder(lastUri);
+                        view.animate().alpha(0f).setDuration(160).withEndAction(() -> {
+                            playlistIndex++;
+                            lastUri = playlist.get(playlistIndex);
+                            transitionPending = true;
+                            startDecoder(lastUri);
+                        }).start();
                     } else if (playbackEndedCallback != null) {
                         playbackEndedCallback.run();
                     }
