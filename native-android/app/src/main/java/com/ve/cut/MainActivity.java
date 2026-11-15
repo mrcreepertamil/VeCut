@@ -400,9 +400,15 @@ public final class MainActivity extends Activity {
             toast("This clip has no known duration.");
             return;
         }
-        long splitAtMs = previewSeekBar.getProgress();
-        if (splitAtMs <= 0 || splitAtMs >= selectedClipDurationMs) {
-            toast("Move the playhead inside the selected clip before splitting.");
+        long relativePlayheadMs = previewSeekBar.getProgress();
+        long trimmedLengthMs = selectedSourceOutMs >= 0
+                ? selectedSourceOutMs - selectedSourceInMs
+                : selectedClipDurationMs - selectedSourceInMs;
+        long splitAtMs = selectedSourceInMs + relativePlayheadMs;
+        if (relativePlayheadMs <= 0 || relativePlayheadMs >= trimmedLengthMs
+                || splitAtMs <= selectedSourceInMs
+                || (selectedSourceOutMs >= 0 && splitAtMs >= selectedSourceOutMs)) {
+            toast("Move the playhead inside the trimmed clip before splitting.");
             return;
         }
         int newClipId = mediaEngine.splitClip(selectedClipId, splitAtMs);
