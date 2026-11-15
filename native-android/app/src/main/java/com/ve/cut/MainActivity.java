@@ -594,6 +594,7 @@ public final class MainActivity extends Activity {
                     }
                     selectedTransitionType = type;
                     selectedTransitionDurationMs = durationMs;
+                    if (videoPreview != null) videoPreview.setTransitionSettings(type, (int) durationMs);
                     selectedClip.setText("Clip #" + selectedClipId + " · " + types[type]
                             + (durationMs > 0 ? " · " + durationMs + " ms" : ""));
                     toast("Transition saved in the C++ timeline.");
