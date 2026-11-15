@@ -13,7 +13,7 @@ It is not the application architecture for iOS.
 | `MainActivity` | `MainWindow` and `TimelineWidget` | Core editor UI and timeline operations are C++. |
 | `AudioPreviewPlayer` | `apps/vecut/audio_preview.h/.cpp` (`AudioPreview`) | Dedicated C++/Qt audio-only preview class is integrated into the editor; lifecycle parity still needs testing. |
 | `CodecVideoPlayer` | `apps/vecut/video_preview.h/.cpp` (`VideoPreview`) | Dedicated C++/Qt video preview class is integrated; platform decoder and hardware acceleration are supplied by Qt platform plugins, not a copied Android MediaCodec implementation. |
-| `GlVideoPreview` | `VideoPreview` frame sink plus `preview_compositor.h/.cpp` | Playback and selected-clip CPU composition are separate reusable C++ classes; the GPU shader renderer and full timeline compositing remain pending. |
+| `GlVideoPreview` | `VideoPreview`, `preview_compositor.h/.cpp` and `gpu_preview_widget.h/.cpp` | C++/Qt playback, selected-clip composition and first GPU frame/filter preview are implemented; full timeline compositing remains pending. |
 | `MediaProbe` | `media_probe.h/.cpp` plus Qt Multimedia probing | Image dimensions and thumbnails are implemented in C++; video duration is probed by the existing Qt Multimedia path. |
 | `NativeMediaEngine` | `engine/include/vecut/project.h` and `engine/src/project.cpp` | The shared C++ project/timeline model replaces the old JNI wrapper. |
 | `ProjectStore` | Versioned `.vecut` project save/load in `MainWindow` | Replaced by portable project files rather than Android SharedPreferences. |
@@ -50,13 +50,10 @@ hardware acceleration still require builds and device tests on those platforms.
 The selected-clip frame composition logic now lives in
 `apps/vecut/preview_compositor.h/.cpp`, separate from the main window. It
 accepts a decoded/still `QImage`, target size, selected clip and elapsed clip
-time, then returns a composed frame. It currently uses QPainter on the CPU. The legacy Android shader looks have
-also been moved into a portable GLSL ES 2.0 source library
-(`preview_shader_library.h/.cpp`): Normal, Monochrome, Warm, Cool, Sepia,
-Vintage, Invert and Contrast. These shaders are groundwork only: the current
-QLabel/QImage preview has no OpenGL context, so a QOpenGLWidget renderer still
-needs to be implemented before the filters execute on the GPU. This is not an
-adjacent-clip compositor or export renderer.
+time, then returns a composed frame. The clip transforms and transition composition still use QPainter on the CPU.
+The legacy Android shader looks are available through a portable GLSL shader
+library and are executed by the GPU preview widget for color filtering. This is
+not an adjacent-clip compositor or export renderer.
 
 
 ## Cross-platform GPU preview renderer
