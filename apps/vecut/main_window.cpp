@@ -21,6 +21,10 @@
 #include <QListWidgetItem>
 #include <QImageReader>
 #include <QMediaPlayer>
+#include <QAudioOutput>
+#include <QVideoWidget>
+#include <QStackedWidget>
+#include <QSlider>
 #include <QPixmap>
 #include <QIcon>
 #include <QUrl>
@@ -31,6 +35,7 @@
 #include <QWidget>
 
 #include <algorithm>
+#include <limits>
 #include <cmath>
 #include <QStringList>
 #include <utility>
@@ -445,7 +450,54 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     preview_label_->setWordWrap(true);
     preview_label_->setStyleSheet("background:#090a0e;border:1px solid #303440;border-radius:12px;"
                                   "color:#a4a8b5;font-size:15px;");
-    preview_layout->addWidget(preview_label_, 1);
+    preview_stack_ = new QStackedWidget(preview_panel);
+    video_preview_ = new QVideoWidget(preview_stack_);
+    video_preview_->setMinimumSize(0, 0);
+    preview_stack_->addWidget(preview_label_);
+    preview_stack_->addWidget(video_preview_);
+    preview_layout->addWidget(preview_stack_, 1);
+
+    auto* preview_controls = new QHBoxLayout();
+    preview_play_button_ = new QPushButton("Play", preview_panel);
+    preview_play_button_->setMinimumHeight(36);
+    preview_seek_ = new QSlider(Qt::Horizontal, preview_panel);
+    preview_seek_->setRange(0, 0);
+    preview_controls->addWidget(preview_play_button_);
+    preview_controls->addWidget(preview_seek_, 1);
+    preview_layout->addLayout(preview_controls);
+
+    preview_audio_ = new QAudioOutput(this);
+    preview_player_ = new QMediaPlayer(this);
+    preview_player_->setAudioOutput(preview_audio_);
+    preview_player_->setVideoOutput(video_preview_);
+    connect(preview_play_button_, &QPushButton::clicked, this, [this] {
+        if (!preview_player_ || preview_player_->source().isEmpty()) return;
+        if (preview_player_->playbackState() == QMediaPlayer::PlayingState)
+            preview_player_->pause();
+        else
+            preview_player_->play();
+    });
+    connect(preview_player_, &QMediaPlayer::playbackStateChanged, this,
+            [this](QMediaPlayer::PlaybackState state) {
+        preview_play_button_->setText(state == QMediaPlayer::PlayingState ? "Pause" : "Play");
+    });
+    connect(preview_player_, &QMediaPlayer::durationChanged, this, [this](qint64 duration) {
+        preview_seek_->setRange(0, static_cast<int>(std::min<qint64>(
+            duration, std::numeric_limits<int>::max())));
+    });
+    connect(preview_player_, &QMediaPlayer::positionChanged, this, [this](qint64 position) {
+        if (!preview_seek_->isSliderDown())
+            preview_seek_->setValue(static_cast<int>(position));
+    });
+    connect(preview_seek_, &QSlider::sliderMoved, this, [this](int position) {
+        preview_player_->setPosition(position);
+    });
+    connect(preview_player_, &QMediaPlayer::errorOccurred, this,
+            [this](QMediaPlayer::Error, const QString& error) {
+        preview_label_->setText(QString("Preview could not play this file\n%1").arg(error));
+        preview_stack_->setCurrentWidget(preview_label_);
+        status_label_->setText("Preview playback error.");
+    });
     workspace_->addWidget(preview_panel);
     workspace_->setStretchFactor(0, 1);
     workspace_->setStretchFactor(1, 3);
@@ -661,9 +713,47 @@ void MainWindow::update_media_details() {
         QString("%1\n%2\nDuration: %3\nSize: %4 MB\nDimensions: %5")
             .arg(QString::fromStdString(found->display_name), media_kind_name(found->kind),
                  duration, QString::number(size_mb, 'f', 2), dimensions));
-    preview_label_->setText(
-        QString("%1\n\nMetadata loaded\nPreview playback is not connected yet")
+    load_preview_media(id);
+}
+
+void MainWindow::load_preview_media(const QString& media_id) {
+    const auto found = std::find_if(project_.media().begin(), project_.media().end(),
+        [&](const vecut::MediaAsset& asset) {
+            return QString::fromStdString(asset.id) == media_id;
+        });
+    if (found == project_.media().end()) return;
+
+    preview_player_->stop();
+    preview_player_->setSource(QUrl());
+    preview_seek_->setRange(0, 0);
+    preview_seek_->setValue(0);
+    preview_play_button_->setText("Play");
+
+    if (found->kind == vecut::MediaKind::Video) {
+        preview_label_->setText("Loading video preview…");
+        preview_stack_->setCurrentWidget(video_preview_);
+        preview_player_->setSource(QUrl::fromLocalFile(
+            QString::fromStdString(found->uri)));
+    } else if (found->kind == vecut::MediaKind::Audio) {
+        preview_label_->setText(QString("AUDIO PREVIEW\n\n%1")
             .arg(QString::fromStdString(found->display_name)));
+        preview_stack_->setCurrentWidget(preview_label_);
+        preview_player_->setSource(QUrl::fromLocalFile(
+            QString::fromStdString(found->uri)));
+    } else {
+        preview_player_->setSource(QUrl());
+        QImageReader reader(QString::fromStdString(found->uri));
+        const QImage image = reader.read();
+        if (!image.isNull()) {
+            preview_label_->setPixmap(QPixmap::fromImage(image).scaled(
+                preview_label_->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+            preview_label_->setText(QString());
+        } else {
+            preview_label_->setPixmap(QPixmap());
+            preview_label_->setText("Could not load image preview.");
+        }
+        preview_stack_->setCurrentWidget(preview_label_);
+    }
 }
 
 void MainWindow::probe_media(const QString& media_id, const QString& path,
