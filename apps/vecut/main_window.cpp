@@ -1,5 +1,5 @@
 #include "main_window.h"
-#include "media_probe.h"
+#include "media_probe.h"\n#include "gpu_preview_widget.h"\n#include "preview_shader_library.h"
 
 #include <QFileDialog>
 #include <QFile>
@@ -931,9 +931,9 @@ void MainWindow::load_preview_media(const QString& media_id) {
 }
 
 void MainWindow::render_preview_frame() {
-    if (current_preview_frame_.isNull() || !preview_label_) return;
+    if (current_preview_frame_.isNull() || !gpu_preview_) return;
 
-    QSize target = preview_label_->contentsRect().size();
+    QSize target = gpu_preview_->contentsRect().size();
     if (target.width() < 2 || target.height() < 2)
         target = QSize(640, 360);
 
@@ -966,10 +966,8 @@ void MainWindow::render_preview_frame() {
         current_preview_frame_, target, selected_clip, clip_elapsed_ms);
     if (composed.isNull()) return;
 
-    preview_label_->setPixmap(QPixmap::fromImage(composed).scaled(
-        preview_label_->contentsRect().size(), Qt::KeepAspectRatio,
-        Qt::SmoothTransformation));
-    preview_label_->setText(QString());
+    gpu_preview_->set_frame(composed);
+    preview_stack_->setCurrentWidget(gpu_preview_);
 }
 
 void MainWindow::probe_media(const QString& media_id, const QString& path,
