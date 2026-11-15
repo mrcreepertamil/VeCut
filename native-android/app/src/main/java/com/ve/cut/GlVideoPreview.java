@@ -20,7 +20,7 @@ public final class GlVideoPreview {
     private final Handler main = new Handler(Looper.getMainLooper());
     private volatile UriRequest pending;
     private Surface decoderSurface;
-    private SurfaceTexture surfaceTexture;
+    private volatile SurfaceTexture surfaceTexture;
     private boolean hasVideo;
 
     public GlVideoPreview(Context context) {
@@ -52,14 +52,28 @@ public final class GlVideoPreview {
         else player.resume();
     }
 
-    public void release() {
+    public void clearVideo() {
         hasVideo = false;
         pending = null;
         player.stop();
+    }
+
+    public void onResume() { view.onResume(); }
+
+    public void onPause() {
+        player.pause();
+        view.onPause();
+    }
+
+    public void release() {
+        clearVideo();
         if (decoderSurface != null) {
             decoderSurface.release();
             decoderSurface = null;
         }
+        SurfaceTexture current = surfaceTexture;
+        surfaceTexture = null;
+        if (current != null) current.release();
     }
 
     private void startPending() {
@@ -122,6 +136,8 @@ public final class GlVideoPreview {
             texture.setOnFrameAvailableListener(st -> view.requestRender());
             main.post(() -> {
                 if (decoderSurface != null) decoderSurface.release();
+                SurfaceTexture previous = surfaceTexture;
+                if (previous != null && previous != texture) previous.release();
                 surfaceTexture = texture;
                 decoderSurface = new Surface(texture);
                 startPending();
