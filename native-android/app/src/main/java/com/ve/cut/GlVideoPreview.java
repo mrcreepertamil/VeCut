@@ -25,6 +25,13 @@ public final class GlVideoPreview {
     private android.net.Uri lastUri;
     private boolean resumeAfterLifecyclePause;
     private Runnable playbackEndedCallback;
+    private volatile int filterMode;
+
+    /** 0=normal, 1=monochrome, 2=warm, 3=cool. */
+    public void setFilterMode(int mode) {
+        filterMode = Math.max(0, Math.min(3, mode));
+        view.requestRender();
+    }
 
     public GlVideoPreview(Context context) {
         view = new GLSurfaceView(context);
@@ -139,6 +146,7 @@ public final class GlVideoPreview {
         private int texCoordLocation;
         private int matrixLocation;
         private int samplerLocation;
+        private int filterLocation;
         private SurfaceTexture texture;
 
         @Override public void onSurfaceCreated(javax.microedition.khronos.opengles.GL10 gl,
@@ -152,6 +160,7 @@ public final class GlVideoPreview {
             texCoordLocation = GLES20.glGetAttribLocation(program, "aTexCoord");
             matrixLocation = GLES20.glGetUniformLocation(program, "uTexMatrix");
             samplerLocation = GLES20.glGetUniformLocation(program, "uTexture");
+            filterLocation = GLES20.glGetUniformLocation(program, "uFilter");
             int[] textures = new int[1];
             GLES20.glGenTextures(1, textures, 0);
             textureId = textures[0];
@@ -199,6 +208,7 @@ public final class GlVideoPreview {
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
             GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, textureId);
             GLES20.glUniform1i(samplerLocation, 0);
+            GLES20.glUniform1i(filterLocation, filterMode);
             GLES20.glUniformMatrix4fv(matrixLocation, 1, false, transform, 0);
             vertexBuffer.position(0);
             GLES20.glEnableVertexAttribArray(positionLocation);
@@ -263,5 +273,10 @@ public final class GlVideoPreview {
             "precision mediump float;\n" +
             "uniform samplerExternalOES uTexture;\n" +
             "varying vec2 vTexCoord;\n" +
-            "void main(){ gl_FragColor=texture2D(uTexture,vTexCoord); }";
+            "uniform int uFilter;\n" +
+            "void main(){ vec4 c=texture2D(uTexture,vTexCoord); " +
+            "if(uFilter==1){ float g=dot(c.rgb,vec3(0.299,0.587,0.114)); c.rgb=vec3(g); } " +
+            "else if(uFilter==2){ c.r=min(1.0,c.r*1.08+0.025); c.g*=0.99; c.b*=0.90; } " +
+            "else if(uFilter==3){ c.r*=0.90; c.g*=0.99; c.b=min(1.0,c.b*1.08+0.02); } " +
+            "gl_FragColor=c; }";
 }
