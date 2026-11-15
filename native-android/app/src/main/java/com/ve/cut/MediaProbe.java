@@ -42,7 +42,7 @@ public final class MediaProbe {
                     MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT));
             rotation = parseInt(retriever.extractMetadata(
                     MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION));
-        } catch (RuntimeException ignored) {
+        } catch (Exception ignored) {
             // Some document providers expose sources that cannot be inspected.
         } finally {
             try { retriever.release(); }
@@ -86,11 +86,11 @@ public final class MediaProbe {
                 retriever.setDataSource(context, uri);
                 bitmap = retriever.getFrameAtTime(0,
                         MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
-            } catch (RuntimeException ignored) {
+            } catch (Exception ignored) {
                 return null;
             } finally {
                 try { retriever.release(); }
-                catch (RuntimeException ignored) { /* Best-effort release. */ }
+                catch (Exception ignored) { /* Best-effort release. */ }
             }
         }
         if (bitmap != null && (bitmap.getWidth() > 1280 || bitmap.getHeight() > 720)) {
