@@ -21,7 +21,10 @@ public final class GlVideoPreview {
     private volatile UriRequest pending;
     private Surface decoderSurface;
     private volatile SurfaceTexture surfaceTexture;
-    private boolean hasVideo;
+    private volatile boolean hasVideo;
+    private android.net.Uri lastUri;
+    private boolean resumeAfterLifecyclePause;
+    private Runnable playbackEndedCallback;
 
     public GlVideoPreview(Context context) {
         view = new GLSurfaceView(context);
@@ -36,6 +39,7 @@ public final class GlVideoPreview {
     public void setVideo(android.net.Uri uri) {
         if (uri == null) return;
         hasVideo = true;
+        lastUri = uri;
         pending = new UriRequest(uri);
         main.post(() -> {
             if (decoderSurface != null) startPending();
@@ -46,10 +50,19 @@ public final class GlVideoPreview {
 
     public boolean isPlaying() { return player.isPlaying(); }
 
+    public void setOnPlaybackEnded(Runnable callback) {
+        playbackEndedCallback = callback;
+    }
+
     public void togglePlayback() {
         if (!hasVideo) return;
-        if (player.isPlaying()) player.pause();
-        else player.resume();
+        if (player.isPlaying()) {
+            player.pause();
+        } else if (player.canResume()) {
+            player.resume();
+        } else if (lastUri != null && decoderSurface != null) {
+            startDecoder(lastUri);
+        }
     }
 
     public void clearVideo() {
@@ -58,9 +71,16 @@ public final class GlVideoPreview {
         player.stop();
     }
 
-    public void onResume() { view.onResume(); }
+    public void onResume() {
+        view.onResume();
+        if (resumeAfterLifecyclePause) {
+            resumeAfterLifecyclePause = false;
+            player.resume();
+        }
+    }
 
     public void onPause() {
+        resumeAfterLifecyclePause = player.isPlaying();
         player.pause();
         view.onPause();
     }
@@ -80,13 +100,24 @@ public final class GlVideoPreview {
         UriRequest request = pending;
         if (request == null || decoderSurface == null) return;
         pending = null;
-        player.play(request.uri, decoderSurface, new CodecVideoPlayer.Listener() {
+        startDecoder(request.uri);
+    }
+
+    private void startDecoder(android.net.Uri uri) {
+        player.play(uri, decoderSurface, new CodecVideoPlayer.Listener() {
             @Override public void onPrepared() { }
             @Override public void onCompleted() {
-                main.post(() -> { if (hasVideo) player.pause(); });
+                main.post(() -> {
+                    if (playbackEndedCallback != null) playbackEndedCallback.run();
+                });
             }
             @Override public void onError(String message) {
-                main.post(() -> android.util.Log.e("VeCut", "Video decoder: " + message));
+                main.post(() -> {
+                    android.util.Log.e("VeCut", "Video decoder: " + message);
+                    android.widget.Toast.makeText(view.getContext(),
+                            "Video preview failed: " + message,
+                            android.widget.Toast.LENGTH_LONG).show();
+                });
             }
         });
     }
