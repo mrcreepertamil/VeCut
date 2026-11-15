@@ -936,122 +936,37 @@ void MainWindow::render_preview_frame() {
     QSize target = preview_label_->contentsRect().size();
     if (target.width() < 2 || target.height() < 2)
         target = QSize(640, 360);
-    QImage canvas(target, QImage::Format_ARGB32_Premultiplied);
-    canvas.fill(Qt::black);
 
-    const QImage fitted = current_preview_frame_.scaled(
-        target, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-    const QString track_id = selected_track_id_;
-    const QString clip_id = selected_clip_id_;
     const vecut::Clip* selected_clip = nullptr;
-    const vecut::Track* selected_track = nullptr;
-    if (!track_id.isEmpty() && !clip_id.isEmpty()) {
+    if (!selected_track_id_.isEmpty() && !selected_clip_id_.isEmpty()) {
         const auto track = std::find_if(project_.tracks().begin(), project_.tracks().end(),
             [&](const vecut::Track& item) {
-                return QString::fromStdString(item.id) == track_id;
+                return QString::fromStdString(item.id) == selected_track_id_;
             });
-        if (track != project_.tracks().end()) {
-            selected_track = &*track;
+        if (track != project_.tracks().end() && track->kind != vecut::TrackKind::Audio) {
             const auto clip = std::find_if(track->clips.begin(), track->clips.end(),
                 [&](const vecut::Clip& item) {
-                    return QString::fromStdString(item.id) == clip_id;
+                    return QString::fromStdString(item.id) == selected_clip_id_;
                 });
             if (clip != track->clips.end()) selected_clip = &*clip;
         }
     }
 
-    double opacity = 1.0;
-    double reveal = 1.0;
-    double slide = 0.0;
-    double zoom = 1.0;
-    double pan_x = 0.0;
-    double pan_y = 0.0;
-    double rotation = 0.0;
-    if (selected_clip && selected_track &&
-        selected_track->kind != vecut::TrackKind::Audio) {
+    qint64 clip_elapsed_ms = preview_effect_time_ms_;
+    if (selected_clip) {
         const qint64 source_time = preview_player_ &&
             !preview_player_->source().isEmpty()
             ? preview_player_->position()
             : selected_clip->source_in_ms + preview_effect_time_ms_;
-        const qint64 clip_elapsed = std::max<qint64>(
+        clip_elapsed_ms = std::max<qint64>(
             0, source_time - selected_clip->source_in_ms);
-        const qint64 clip_duration = selected_clip->source_out_ms -
-            selected_clip->source_in_ms;
-        const auto& transition = selected_clip->incoming_transition;
-        if (transition.fade_in_ms > 0)
-            opacity = std::min(opacity, std::clamp(
-                static_cast<double>(clip_elapsed) / transition.fade_in_ms, 0.0, 1.0));
-        if (transition.fade_out_ms > 0)
-            opacity = std::min(opacity, std::clamp(
-                static_cast<double>(clip_duration - clip_elapsed) /
-                    transition.fade_out_ms, 0.0, 1.0));
-
-        const qint64 transition_duration = transition.duration_ms;
-        if (transition_duration > 0 && clip_elapsed < transition_duration) {
-            const double progress = std::clamp(
-                static_cast<double>(clip_elapsed) / transition_duration, 0.0, 1.0);
-            switch (transition.kind) {
-            case vecut::TransitionKind::Fade:
-            case vecut::TransitionKind::Dissolve:
-                opacity = std::min(opacity, progress);
-                break;
-            case vecut::TransitionKind::WipeLeftToRight:
-            case vecut::TransitionKind::WipeRightToLeft:
-                reveal = progress;
-                break;
-            case vecut::TransitionKind::SlideLeftToRight:
-                slide = (1.0 - progress) * target.width();
-                break;
-            case vecut::TransitionKind::SlideRightToLeft:
-                slide = -(1.0 - progress) * target.width();
-                break;
-            case vecut::TransitionKind::None:
-                break;
-            }
-        }
-
-        const auto& animation = selected_clip->animation;
-        if (animation.kind != vecut::AnimationKind::None &&
-            animation.duration_ms > 0) {
-            const double p = std::clamp(
-                static_cast<double>(clip_elapsed) / animation.duration_ms, 0.0, 1.0);
-            switch (animation.kind) {
-            case vecut::AnimationKind::ZoomIn: zoom = 1.0 + 0.35 * p; break;
-            case vecut::AnimationKind::ZoomOut: zoom = 1.35 - 0.35 * p; break;
-            case vecut::AnimationKind::PanLeft: pan_x = -0.22 * p; break;
-            case vecut::AnimationKind::PanRight: pan_x = 0.22 * p; break;
-            case vecut::AnimationKind::PanUp: pan_y = -0.22 * p; break;
-            case vecut::AnimationKind::PanDown: pan_y = 0.22 * p; break;
-            case vecut::AnimationKind::RotateClockwise: rotation = 12.0 * p; break;
-            case vecut::AnimationKind::RotateCounterClockwise: rotation = -12.0 * p; break;
-            case vecut::AnimationKind::None: break;
-            }
-        }
     }
 
-    QPainter painter(&canvas);
-    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-    painter.setOpacity(opacity);
-    if (selected_clip && selected_clip->incoming_transition.kind ==
-            vecut::TransitionKind::WipeLeftToRight && reveal < 1.0)
-        painter.setClipRect(QRect(0, 0, static_cast<int>(target.width() * reveal),
-                                  target.height()));
-    else if (selected_clip && selected_clip->incoming_transition.kind ==
-                 vecut::TransitionKind::WipeRightToLeft && reveal < 1.0)
-        painter.setClipRect(QRect(target.width() - static_cast<int>(target.width() * reveal),
-                                  0, static_cast<int>(target.width() * reveal),
-                                  target.height()));
+    const QImage composed = preview_compositor_.compose(
+        current_preview_frame_, target, selected_clip, clip_elapsed_ms);
+    if (composed.isNull()) return;
 
-    const QPointF center(target.width() / 2.0 + pan_x * target.width() + slide,
-                         target.height() / 2.0 + pan_y * target.height());
-    painter.translate(center);
-    painter.rotate(rotation);
-    painter.scale(zoom, zoom);
-    painter.translate(-fitted.width() / 2.0, -fitted.height() / 2.0);
-    painter.drawImage(QPoint(0, 0), fitted);
-    painter.end();
-
-    preview_label_->setPixmap(QPixmap::fromImage(canvas).scaled(
+    preview_label_->setPixmap(QPixmap::fromImage(composed).scaled(
         preview_label_->contentsRect().size(), Qt::KeepAspectRatio,
         Qt::SmoothTransformation));
     preview_label_->setText(QString());
