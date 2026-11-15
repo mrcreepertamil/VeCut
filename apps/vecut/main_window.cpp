@@ -1374,7 +1374,7 @@ void MainWindow::edit_selected_transition() {
     if (clip == track->clips.end()) return;
 
     QDialog dialog(this);
-    dialog.setWindowTitle("Clip transition");
+    dialog.setWindowTitle("Transitions, fades and animation");
     auto* layout = new QFormLayout(&dialog);
     auto* kind = new QComboBox(&dialog);
     kind->addItem("None", static_cast<int>(vecut::TransitionKind::None));
