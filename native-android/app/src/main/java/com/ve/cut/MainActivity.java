@@ -600,6 +600,11 @@ public final class MainActivity extends Activity {
                 }).show();
     }
 
+    private String formatPreciseTime(long milliseconds) {
+        long safe = Math.max(0, milliseconds);
+        return formatTime(safe) + String.format(Locale.US, ".%03d", safe % 1000);
+    }
+
     private String formatTime(long milliseconds) {
         long seconds = Math.max(0, milliseconds / 1000);
         return String.format(Locale.US, "%02d:%02d", seconds / 60, seconds % 60);
@@ -834,6 +839,7 @@ public final class MainActivity extends Activity {
             }
         }
         if (videoSources.isEmpty()) videoSources.add(uri);
+        videoPreview.setTransitionSettings(selectedTransitionType, (int) selectedTransitionDurationMs);
         videoPreview.setPlaylist(videoSources, uri);
         if (playButton != null) playButton.setText("Ⅱ");
         playing = true;
