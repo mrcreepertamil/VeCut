@@ -118,6 +118,7 @@ public final class GlVideoPreview {
                     android.widget.Toast.makeText(view.getContext(),
                             "Video preview failed: " + message,
                             android.widget.Toast.LENGTH_LONG).show();
+                    if (playbackEndedCallback != null) playbackEndedCallback.run();
                 });
             }
         });
@@ -167,12 +168,15 @@ public final class GlVideoPreview {
             texture = new SurfaceTexture(textureId);
             texture.setOnFrameAvailableListener(st -> view.requestRender());
             main.post(() -> {
+                boolean replacingSurface = decoderSurface != null;
+                if (replacingSurface) player.stop();
                 if (decoderSurface != null) decoderSurface.release();
                 SurfaceTexture previous = surfaceTexture;
                 if (previous != null && previous != texture) previous.release();
                 surfaceTexture = texture;
                 decoderSurface = new Surface(texture);
-                startPending();
+                if (pending != null) startPending();
+                else if (replacingSurface && hasVideo && lastUri != null) startDecoder(lastUri);
             });
         }
 
