@@ -14,6 +14,8 @@ qt_add_executable(VeCut
     audio_preview.h
     preview_compositor.cpp
     preview_compositor.h
+    preview_shader_library.cpp
+    preview_shader_library.h
 )
 
 target_link_libraries(VeCut PRIVATE Qt6::Widgets Qt6::Multimedia vecut_core)
