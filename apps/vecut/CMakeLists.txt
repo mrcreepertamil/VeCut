@@ -1,4 +1,4 @@
-find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Multimedia)
 
 qt_standard_project_setup()
 
@@ -8,5 +8,5 @@ qt_add_executable(VeCut
     main_window.h
 )
 
-target_link_libraries(VeCut PRIVATE Qt6::Widgets vecut_core)
+target_link_libraries(VeCut PRIVATE Qt6::Widgets Qt6::Multimedia vecut_core)
 target_compile_features(VeCut PRIVATE cxx_std_17)
