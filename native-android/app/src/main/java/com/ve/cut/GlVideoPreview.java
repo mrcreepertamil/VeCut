@@ -31,6 +31,7 @@ public final class GlVideoPreview {
     private Runnable playbackEndedCallback;
     private volatile int filterMode;
     private volatile boolean transitionPending;
+    private volatile long currentPositionMs;
 
     /** 0=normal, 1=monochrome, 2=warm, 3=cool. */
     public void setFilterMode(int mode) {
@@ -81,6 +82,13 @@ public final class GlVideoPreview {
     public boolean hasVideo() { return hasVideo; }
 
     public boolean isPlaying() { return player.isPlaying(); }
+
+    /** Restarts decoding from the nearest sync frame before the requested source time. */
+    public void seekTo(long positionMs) {
+        if (!hasVideo || lastUri == null || decoderSurface == null) return;
+        currentPositionMs = Math.max(0, positionMs);
+        startDecoder(lastUri, currentPositionMs);
+    }
 
     public void setOnPlaybackEnded(Runnable callback) {
         playbackEndedCallback = callback;
@@ -139,6 +147,11 @@ public final class GlVideoPreview {
     }
 
     private void startDecoder(android.net.Uri uri) {
+        currentPositionMs = 0;
+        startDecoder(uri, 0);
+    }
+
+    private void startDecoder(android.net.Uri uri, long seekPositionMs) {
         player.play(uri, decoderSurface, new CodecVideoPlayer.Listener() {
             @Override public void onPrepared() {
                 if (transitionPending) {
@@ -171,7 +184,7 @@ public final class GlVideoPreview {
                     if (playbackEndedCallback != null) playbackEndedCallback.run();
                 });
             }
-        });
+        }, seekPositionMs);
     }
 
     private final class PreviewRenderer implements GLSurfaceView.Renderer {
