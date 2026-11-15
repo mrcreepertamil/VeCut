@@ -3,6 +3,7 @@
 #include <QFileDialog>
 #include <QDrag>
 #include <QDragEnterEvent>
+#include <QDragMoveEvent>
 #include <QDropEvent>
 #include <QMimeData>
 #include <QAbstractItemView>
@@ -304,7 +305,8 @@ void MainWindow::import_media() {
         asset.display_name = info.fileName().toStdString();
         asset.kind = media_kind_for_file(info);
         // Zero means "duration not probed yet"; never invent a source duration.
-        asset.duration_ms = 0;
+        asset.duration_ms = asset.kind == vecut::MediaKind::Image
+            ? kStillImageClipDurationMs : 0;
         asset.file_size_bytes = static_cast<std::uint64_t>(std::max<qint64>(0, info.size()));
 
         QImageReader image_reader(path);
@@ -372,10 +374,12 @@ void MainWindow::update_media_details() {
         [&](const vecut::MediaAsset& asset) { return QString::fromStdString(asset.id) == id; });
     if (found == project_.media().end()) return;
 
-    const QString duration = found->duration_ms > 0
-        ? QString("%1:%2").arg(found->duration_ms / 60000, 2, 10, QLatin1Char('0'))
-                            .arg((found->duration_ms / 1000) % 60, 2, 10, QLatin1Char('0'))
-        : (found->kind == vecut::MediaKind::Image ? QString("Still image") : QString("Probing…"));
+    const QString duration = found->kind == vecut::MediaKind::Image
+        ? QString("Still image · 5s default")
+        : (found->duration_ms > 0
+            ? QString("%1:%2").arg(found->duration_ms / 60000, 2, 10, QLatin1Char('0'))
+                                .arg((found->duration_ms / 1000) % 60, 2, 10, QLatin1Char('0'))
+            : QString("Probing…"));
     const QString dimensions = found->width > 0 && found->height > 0
         ? QString("%1 × %2").arg(found->width).arg(found->height)
         : QString("Dimensions unavailable");
@@ -397,7 +401,8 @@ void MainWindow::probe_media(const QString& media_id, const QString& path,
                 return QString::fromStdString(asset.id) == media_id;
             });
         if (found != project_.media().end()) {
-            project_.update_media_info(found->id, 0, found->width, found->height);
+            project_.update_media_info(found->id, found->duration_ms,
+                                       found->width, found->height);
             refresh_media_item(media_id);
         }
         return;
