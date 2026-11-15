@@ -64,6 +64,8 @@ private:
     QLabel* preview_label_ = nullptr;
     QVideoSink* preview_video_sink_ = nullptr;
     QImage current_preview_frame_;
+    QTimer* preview_effect_timer_ = nullptr;
+    std::int64_t preview_effect_time_ms_ = 0;
     QStackedWidget* preview_stack_ = nullptr;
     QSlider* preview_seek_ = nullptr;
     QPushButton* preview_play_button_ = nullptr;
