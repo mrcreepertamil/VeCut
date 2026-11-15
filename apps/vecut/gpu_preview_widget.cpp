@@ -3,9 +3,9 @@
 #include <QOpenGLContext>
 #include <QOpenGLShader>
 #include <QPainter>
-#include <QSurfaceFormat>
 
 #include <array>
+#include <cmath>
 
 GpuPreviewWidget::GpuPreviewWidget(QWidget* parent)
     : QOpenGLWidget(parent) {
@@ -37,6 +37,11 @@ void GpuPreviewWidget::set_filter(vecut::PreviewFilterMode mode) {
     update();
 }
 
+void GpuPreviewWidget::set_effects(const PreviewGpuEffects& effects) {
+    effects_ = effects;
+    update();
+}
+
 void GpuPreviewWidget::initializeGL() {
     initializeOpenGLFunctions();
     glDisable(GL_DEPTH_TEST);
@@ -60,14 +65,13 @@ void GpuPreviewWidget::resizeGL(int width, int height) {
 
 bool GpuPreviewWidget::create_shader_program() {
     const bool gles = context() && context()->isOpenGLES();
-    const QString vertex = vecut::PreviewShaderLibrary::vertex_source(gles);
-    const QString fragment = vecut::PreviewShaderLibrary::fragment_source(gles);
-
-    if (!program_.addShaderFromSourceCode(QOpenGLShader::Vertex, vertex)) {
+    if (!program_.addShaderFromSourceCode(QOpenGLShader::Vertex,
+            vecut::PreviewShaderLibrary::vertex_source(gles))) {
         shader_error_ = program_.log();
         return false;
     }
-    if (!program_.addShaderFromSourceCode(QOpenGLShader::Fragment, fragment)) {
+    if (!program_.addShaderFromSourceCode(QOpenGLShader::Fragment,
+            vecut::PreviewShaderLibrary::fragment_source(gles))) {
         shader_error_ = program_.log();
         return false;
     }
@@ -105,14 +109,21 @@ void GpuPreviewWidget::paintGL() {
     }
 
     static constexpr std::array<GLfloat, 8> positions = {
-        -1.0f, -1.0f,  1.0f, -1.0f,
-        -1.0f,  1.0f,  1.0f,  1.0f
+        -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f
     };
-    // QImage's first scanline is the top row; flip V to display it upright.
     static constexpr std::array<GLfloat, 8> texcoords = {
-        0.0f, 1.0f,  1.0f, 1.0f,
-        0.0f, 0.0f,  1.0f, 0.0f
+        0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f
     };
+
+    const float widget_aspect = height() > 0
+        ? static_cast<float>(width()) / static_cast<float>(height()) : 1.0f;
+    const float image_aspect = frame_.height() > 0
+        ? static_cast<float>(frame_.width()) / static_cast<float>(frame_.height()) : 1.0f;
+    QVector2D content_scale(1.0f, 1.0f);
+    if (widget_aspect > image_aspect)
+        content_scale.setX(image_aspect / widget_aspect);
+    else
+        content_scale.setY(widget_aspect / image_aspect);
 
     program_.bind();
     program_.enableAttributeArray(position_attribute_);
@@ -121,6 +132,14 @@ void GpuPreviewWidget::paintGL() {
     program_.setAttributeArray(texcoord_attribute_, GL_FLOAT, texcoords.data(), 2);
     program_.setUniformValue("uTexture", 0);
     program_.setUniformValue("uFilter", static_cast<int>(filter_));
+    program_.setUniformValue("uContentScale", content_scale);
+    program_.setUniformValue("uOpacity", effects_.opacity);
+    program_.setUniformValue("uZoom", effects_.zoom);
+    program_.setUniformValue("uRotation", effects_.rotation_degrees * 0.01745329252f);
+    program_.setUniformValue("uPan", QVector2D(effects_.pan_x, effects_.pan_y));
+    program_.setUniformValue("uReveal", effects_.reveal);
+    program_.setUniformValue("uSlide", effects_.slide);
+    program_.setUniformValue("uWipeDirection", effects_.wipe_direction);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, texture_);
