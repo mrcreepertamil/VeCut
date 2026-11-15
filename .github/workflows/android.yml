@@ -6,8 +6,12 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  build:
+  android-apk:
+    name: Build C++ Qt Android APK (arm64)
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -19,135 +23,67 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+      - name: Set up Android SDK and NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: |
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;26.1.10909125"
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/26.1.10909125" >> "$GITHUB_ENV"
+
+      - name: Install Qt for Android
+        id: install-qt
+        uses: jurplel/install-qt-action@v4
         with:
-          flutter-version: '3.47.9'
+          version: '6.8.3'
+          host: all_os
+          target: android
+          arch: android_arm64_v8a
+          modules: qtmultimedia
+          cache: true
 
-      - name: Generate Android platform files
-        working-directory: .
-        run: flutter create --platforms=android .
-
-      - name: Add VeCut Android launcher icon
-        working-directory: .
+      - name: Configure C++ Android build
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
+          cmake -S . -B build-android \
+            -DCMAKE_TOOLCHAIN_FILE="$QT_ROOT_DIR/lib/cmake/Qt6/qt.toolchain.cmake" \
+            -DQT_HOST_PATH="$QT_HOST_PATH" \
+            -DANDROID_SDK_ROOT="$ANDROID_SDK_ROOT" \
+            -DANDROID_NDK_ROOT="$ANDROID_NDK_ROOT" \
+            -DANDROID_NDK="$ANDROID_NDK_ROOT" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-24 \
+            -DVECUT_BUILD_DESKTOP=ON \
+            -DBUILD_TESTING=OFF
 
-          root = Path("android/app/src/main/res")
-          (root / "drawable").mkdir(parents=True, exist_ok=True)
-          (root / "mipmap-anydpi").mkdir(parents=True, exist_ok=True)
-          (root / "mipmap-anydpi-v26").mkdir(parents=True, exist_ok=True)
-          (root / "values").mkdir(parents=True, exist_ok=True)
+      - name: Build Android APK
+        run: cmake --build build-android --target apk --parallel 2
 
-          foreground = """<vector xmlns:android="http://schemas.android.com/apk/res/android"
-              android:width="108dp" android:height="108dp"
-              android:viewportWidth="108" android:viewportHeight="108">
-              <path android:fillColor="#FFFFFFFF"
-                  android:pathData="M18,24 L35,24 L54,65 L73,24 L90,24 L62,82 Q58,90 54,90 Q50,90 46,82 Z"/>
-              <path android:fillColor="#FF42E8C4"
-                  android:pathData="M35,53 L76,35 L81,44 L40,62 Z"/>
-              <path android:fillColor="#FF42E8C4"
-                  android:pathData="M72,70 L88,70 L88,77 L72,77 Z"/>
-          </vector>
-          """
-          (root / "drawable/ve_cut_icon_foreground.xml").write_text(foreground)
-
-          background = """<resources>
-              <color name="ve_cut_icon_background">#171321</color>
-          </resources>
-          """
-          (root / "values/ve_cut_icon.xml").write_text(background)
-
-          adaptive = """<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-              <background android:drawable="@color/ve_cut_icon_background"/>
-              <foreground android:drawable="@drawable/ve_cut_icon_foreground"/>
-          </adaptive-icon>
-          """
-          (root / "mipmap-anydpi-v26/ic_launcher.xml").write_text(adaptive)
-
-          legacy = """<vector xmlns:android="http://schemas.android.com/apk/res/android"
-              android:width="108dp" android:height="108dp"
-              android:viewportWidth="108" android:viewportHeight="108">
-              <path android:fillColor="#FF171321" android:pathData="M0,0h108v108h-108z"/>
-              <path android:fillColor="#FFFFFFFF"
-                  android:pathData="M18,24 L35,24 L54,65 L73,24 L90,24 L62,82 Q58,90 54,90 Q50,90 46,82 Z"/>
-              <path android:fillColor="#FF42E8C4"
-                  android:pathData="M35,53 L76,35 L81,44 L40,62 Z"/>
-              <path android:fillColor="#FF42E8C4"
-                  android:pathData="M72,70 L88,70 L88,77 L72,77 Z"/>
-          </vector>
-          """
-          (root / "mipmap-anydpi/ic_launcher.xml").write_text(legacy)
-
-          strings = root / "values/strings.xml"
-          if strings.exists():
-              content = strings.read_text()
-              import re
-              if re.search(r'<string name="app_name">.*?</string>', content):
-                  content = re.sub(r'<string name="app_name">.*?</string>',
-                                   '<string name="app_name">VeCut</string>', content)
-              else:
-                  content = content.replace("</resources>",
-                                            '    <string name="app_name">VeCut</string>\n</resources>')
-              strings.write_text(content)
-          else:
-              strings.write_text('<resources><string name="app_name">VeCut</string></resources>')
-
-          print("Installed VeCut adaptive and legacy launcher icons.")
-          PY
-
-      - name: Set Android compile SDK to 36
-        working-directory: .
+      - name: Verify APK was generated
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
+          find build-android -type f -name '*.apk' -print -quit | grep -q .
+          echo "Android APK generated successfully."
 
-          gradle_file = Path("android/app/build.gradle")
-          if not gradle_file.exists():
-              gradle_file = Path("android/app/build.gradle.kts")
-          if not gradle_file.exists():
-              raise SystemExit("Could not find the generated Android app Gradle file.")
-
-          content = gradle_file.read_text()
-          replacements = (
-              ("compileSdk = flutter.compileSdkVersion", "compileSdk = 36"),
-              ("compileSdkVersion flutter.compileSdkVersion", "compileSdkVersion 36"),
-              ("minSdk = flutter.minSdkVersion", "minSdk = 24"),
-              ("minSdkVersion flutter.minSdkVersion", "minSdkVersion 24"),
-          )
-          for old_value, new_value in replacements:
-              if old_value in content:
-                  content = content.replace(old_value, new_value)
-          if "compileSdk = 36" not in content and "compileSdkVersion 36" not in content:
-              raise SystemExit("Could not set Android compileSdk to 36.")
-          if "minSdk = 24" not in content and "minSdkVersion 24" not in content:
-              raise SystemExit("Could not set Android minSdk to 24.")
-          gradle_file.write_text(content)
-          print(f"Configured {gradle_file}: compileSdk 36, minSdk 24")
-
-          print("Configured Android application: compileSdk 36, minSdk 24.")
-          PY
-
-      - name: Install dependencies
-        working-directory: .
-        run: flutter pub get
-
-      - name: Analyze Dart code
-        working-directory: .
-        run: flutter analyze --no-fatal-infos
-
-      - name: Run tests
-        working-directory: .
-        run: flutter test
-
-      - name: Build release APK
-        working-directory: .
-        run: flutter build apk --release
-
-      - name: Upload APK
+      - name: Upload Android APK
         uses: actions/upload-artifact@v4
         with:
-          name: vecut-android-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: vecut-android-arm64-apk
+          path: build-android/**/*.apk
+          if-no-files-found: error
+          retention-days: 14
 
+  engine-tests:
+    name: C++ engine tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Configure engine
+        run: cmake -S . -B build-engine -DVECUT_BUILD_DESKTOP=OFF -DBUILD_TESTING=ON
+
+      - name: Build engine tests
+        run: cmake --build build-engine --parallel 2
+
+      - name: Run engine tests
+        run: ctest --test-dir build-engine --output-on-failure
