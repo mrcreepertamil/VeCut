@@ -314,7 +314,7 @@ protected:
             start = std::max<std::int64_t>(0, original_start_ms_ + delta);
         } else if (drag_mode_ == DragMode::TrimLeft) {
             const auto min_delta = std::max(-original_start_ms_, -original_in_ms_);
-            const auto max_delta = original_out_ms_ - original_in_ms_ - 100;
+            const auto max_delta = original_out_ms_ - original_in_ms_ - 1;
             const auto applied = std::clamp(delta, min_delta, max_delta);
             start = original_start_ms_ + applied;
             source_in = original_in_ms_ + applied;
@@ -322,7 +322,7 @@ protected:
             const auto media = media_for_clip(drag_clip_id_);
             const auto maximum = media ? media->duration_ms : original_out_ms_;
             source_out = std::clamp(original_out_ms_ + delta,
-                                    original_in_ms_ + 100, maximum);
+                                    original_in_ms_ + 1, maximum);
         }
         on_clip_edited(drag_track_id_, drag_clip_id_, start, source_in, source_out);
         refresh();
@@ -686,7 +686,7 @@ void MainWindow::add_track(vecut::TrackKind kind) {
     status_label_->setText(QString::fromStdString(name) + " added.");
 }
 
-void MainWindow::update_media_details() {
+void MainWindow::update_media_details(bool reload_preview) {
     const auto* item = media_list_->currentItem();
     if (!item) {
         media_details_->setText("No media selected");
@@ -713,7 +713,7 @@ void MainWindow::update_media_details() {
         QString("%1\n%2\nDuration: %3\nSize: %4 MB\nDimensions: %5")
             .arg(QString::fromStdString(found->display_name), media_kind_name(found->kind),
                  duration, QString::number(size_mb, 'f', 2), dimensions));
-    load_preview_media(id);
+    if (reload_preview) load_preview_media(id);
 }
 
 void MainWindow::load_preview_media(const QString& media_id) {
@@ -812,7 +812,7 @@ void MainWindow::refresh_media_item(const QString& media_id) {
             if (found != project_.media().end()) {
                 item->setText(media_kind_name(found->kind) + "  ·  " +
                               QString::fromStdString(found->display_name));
-                if (media_list_->currentItem() == item) update_media_details();
+                if (media_list_->currentItem() == item) update_media_details(false);
             }
             break;
         }
