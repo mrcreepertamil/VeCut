@@ -24,7 +24,8 @@ const std::vector<MediaAsset>& Project::media() const noexcept { return media_; 
 const std::vector<Track>& Project::tracks() const noexcept { return tracks_; }
 
 bool Project::add_media(MediaAsset asset) {
-    if (asset.uri.empty() || asset.id.empty() || asset.duration_ms < 0) return false;
+    if (asset.uri.empty() || asset.id.empty() || asset.duration_ms < 0 ||
+        asset.width < 0 || asset.height < 0) return false;
     const auto duplicate = std::find_if(media_.begin(), media_.end(),
         [&](const MediaAsset& item) { return item.id == asset.id; });
     if (duplicate != media_.end()) return false;
@@ -57,6 +58,8 @@ bool Project::add_clip(const std::string& track_id, Clip clip) {
     if (!track || !asset || clip.id.empty() || find_clip(*track, clip.id)) return false;
     if (clip.source_in_ms < 0 || clip.source_out_ms <= clip.source_in_ms ||
         clip.source_out_ms > asset->duration_ms) return false;
+    if (!std::isfinite(clip.volume) || clip.volume < 0.0 || clip.volume > 4.0)
+        return false;
     // Audio tracks accept audio only. Video and overlay tracks accept
     // video or still-image assets, preventing invalid projects at the model layer.
     if ((track->kind == TrackKind::Audio && asset->kind != MediaKind::Audio) ||
