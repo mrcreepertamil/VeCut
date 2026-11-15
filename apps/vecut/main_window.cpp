@@ -38,6 +38,14 @@ QFrame* make_panel(QWidget* parent) {
     return frame;
 }
 
+bool is_supported_media_file(const QFileInfo& info) {
+    static const QStringList supported = {
+        "mp4", "mov", "mkv", "webm", "avi", "mp3", "wav", "aac", "m4a",
+        "ogg", "flac", "png", "jpg", "jpeg", "webp", "bmp", "gif"
+    };
+    return supported.contains(info.suffix().toLower());
+}
+
 vecut::MediaKind media_kind_for_file(const QFileInfo& info) {
     const QString suffix = info.suffix().toLower();
     static const QStringList audio = {"mp3", "wav", "aac", "m4a", "ogg", "flac"};
@@ -143,7 +151,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     timeline_layout->addWidget(track_list_);
     outer->addWidget(timeline_panel_);
 
-    status_label_ = new QLabel("C++17 project engine ready · Media probing and playback are not connected yet",
+    status_label_ = new QLabel("C++17 project engine ready · Import metadata probing enabled",
                                root);
     status_label_->setWordWrap(true);
     status_label_->setStyleSheet("color:#9aa1af;font-size:11px;");
@@ -217,6 +225,10 @@ void MainWindow::import_media() {
     int imported = 0;
     for (const QString& path : paths) {
         const QFileInfo info(path);
+        if (!is_supported_media_file(info)) {
+            status_label_->setText(QString("Skipped unsupported file: %1").arg(info.fileName()));
+            continue;
+        }
         vecut::MediaAsset asset;
         asset.id = "media-" + std::to_string(next_media_id_++);
         asset.uri = info.absoluteFilePath().toStdString();
