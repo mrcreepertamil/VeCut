@@ -3,6 +3,7 @@
 #include "vecut/project.h"
 
 #include <QString>
+#include <QImage>
 
 #include <QMainWindow>
 
@@ -18,7 +19,7 @@ class QFrame;
 class QPushButton;
 class QMediaPlayer;
 class QAudioOutput;
-class QVideoWidget;
+class QVideoSink;
 class QStackedWidget;
 class QSlider;
 class QTimer;
@@ -51,6 +52,7 @@ private:
     void toggle_timeline_audio();
     void stop_timeline_audio();
     void update_timeline_audio();
+    void render_preview_frame();
     void add_media_to_track(const QString& media_id, const QString& track_id,
                             std::int64_t timeline_start_ms);
 
@@ -60,7 +62,8 @@ private:
     QListWidget* media_list_ = nullptr;
     TimelineWidget* timeline_widget_ = nullptr;
     QLabel* preview_label_ = nullptr;
-    QVideoWidget* video_preview_ = nullptr;
+    QVideoSink* preview_video_sink_ = nullptr;
+    QImage current_preview_frame_;
     QStackedWidget* preview_stack_ = nullptr;
     QSlider* preview_seek_ = nullptr;
     QPushButton* preview_play_button_ = nullptr;
