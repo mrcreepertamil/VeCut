@@ -342,6 +342,21 @@ public final class MainActivity extends Activity {
         });
     }
 
+    private void showEffectsDialog() {
+        if (videoPreview == null || !videoPreview.hasVideo()) {
+            toast("Import a video before applying preview filters.");
+            return;
+        }
+        String[] filters = {"Normal", "Monochrome", "Warm", "Cool"};
+        new AlertDialog.Builder(this).setTitle("Preview effects")
+                .setSingleChoiceItems(filters, -1, (dialog, which) -> {
+                    videoPreview.setFilterMode(which);
+                    dialog.dismiss();
+                    toast(filters[which] + " preview filter applied.");
+                })
+                .setNegativeButton("Cancel", null).show();
+    }
+
     private void showTrimDialog() {
         if (selectedClipId < 0) { toast("Select a timeline clip first."); return; }
         LinearLayout fields = new LinearLayout(this);
@@ -416,6 +431,10 @@ public final class MainActivity extends Activity {
                 openMediaPicker();
             } else if ("Trim".equals(name)) {
                 showTrimDialog();
+            } else if ("Effects".equals(name)) {
+                showEffectsDialog();
+            } else if ("Audio".equals(name)) {
+                openMediaPicker();
             } else {
                 toast(name + " tools are not implemented yet.");
             }
