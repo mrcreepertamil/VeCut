@@ -57,3 +57,26 @@ Vintage, Invert and Contrast. These shaders are groundwork only: the current
 QLabel/QImage preview has no OpenGL context, so a QOpenGLWidget renderer still
 needs to be implemented before the filters execute on the GPU. This is not an
 adjacent-clip compositor or export renderer.
+
+
+## Cross-platform GPU preview renderer
+
+The Qt preview stack now includes `GpuPreviewWidget`, a C++ `QOpenGLWidget`
+renderer using `QOpenGLFunctions` and `QOpenGLShaderProgram`. Decoded video
+frames and still-image frames are first processed by the reusable clip
+compositor, then uploaded as RGBA textures and drawn through a GLSL filter
+shader. The preview filter selector exposes Normal, Monochrome, Warm, Cool,
+Sepia, Vintage, Invert and Contrast.
+
+The shader library supplies OpenGL ES 2.0 syntax for GLES contexts (the mobile
+Android/iOS path) and GLSL 1.20 syntax for desktop compatibility contexts.
+The widget falls back to drawing the frame with QPainter if shader compilation
+or linking fails. The app links Qt 6 OpenGLWidgets; all VeCut renderer and UI
+code remains C++.
+
+This is a first GPU frame/filter renderer, not a GPU-native video decoder,
+multi-clip timeline compositor, transition compositor, or export pipeline.
+Frames are still delivered as QImages by Qt Multimedia and uploaded to a GL
+texture. Actual Android/iOS device builds, context creation, shader compilation,
+orientation, lifecycle and performance must be verified on hardware before
+claiming platform support.
