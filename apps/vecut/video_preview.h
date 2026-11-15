@@ -4,6 +4,7 @@
 #include <QMediaPlayer>
 #include <QAudioOutput>
 #include <QVideoSink>
+#include <QUrl>
 
 /** Portable Qt-backed video preview playback. No Android/iOS UI code. */
 class VideoPreview final : public QObject {
