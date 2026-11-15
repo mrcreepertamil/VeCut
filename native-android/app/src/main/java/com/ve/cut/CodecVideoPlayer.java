@@ -1,7 +1,6 @@
 package com.ve.cut;
 
 import android.content.ContentResolver;
-import android.content.Context;
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
@@ -51,6 +50,11 @@ public final class CodecVideoPlayer {
 
     public boolean isPlaying() { return playing; }
 
+    public boolean canResume() {
+        Thread current = worker;
+        return current != null && current.isAlive() && !stopRequested;
+    }
+
     public synchronized void stop() {
         stopRequested = true;
         paused = false;
@@ -67,7 +71,6 @@ public final class CodecVideoPlayer {
     private void decode(Uri uri, Surface surface, Listener listener) {
         MediaExtractor extractor = new MediaExtractor();
         MediaCodec codec = null;
-        boolean prepared = false;
         try {
             ContentResolver resolver = AppContextHolder.getResolver();
             if (resolver == null) throw new IOException("Application media resolver unavailable.");
@@ -97,7 +100,6 @@ public final class CodecVideoPlayer {
             codec = MediaCodec.createDecoderByType(mime);
             codec.configure(videoFormat, surface, null, 0);
             codec.start();
-            prepared = true;
             listener.onPrepared();
 
             MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
