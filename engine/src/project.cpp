@@ -69,11 +69,13 @@ bool Project::add_clip(const std::string& track_id, Clip clip) {
         clip.incoming_transition.duration_ms > clip_duration) return false;
     if (static_cast<int>(clip.animation.kind) < 0 || static_cast<int>(clip.animation.kind) > 8 ||
         clip.animation.duration_ms < 0 || clip.animation.duration_ms > clip_duration ||
-        clip.fade_in_ms < 0 || clip.fade_in_ms > clip_duration ||
-        clip.fade_out_ms < 0 || clip.fade_out_ms > clip_duration ||
+        clip.incoming_transition.fade_in_ms < 0 ||
+        clip.incoming_transition.fade_in_ms > clip_duration ||
+        clip.incoming_transition.fade_out_ms < 0 ||
+        clip.incoming_transition.fade_out_ms > clip_duration ||
         (track->kind == TrackKind::Audio &&
          (clip.animation.kind != AnimationKind::None || clip.animation.duration_ms != 0 ||
-          clip.fade_in_ms != 0 || clip.fade_out_ms != 0))) return false;
+          clip.incoming_transition.fade_in_ms != 0 || clip.incoming_transition.fade_out_ms != 0))) return false;
     if (clip.timeline_start_ms < -1) return false;
     if (clip.timeline_start_ms == -1) {
         std::int64_t track_end = 0;
@@ -106,8 +108,9 @@ bool Project::trim_clip(const std::string& track_id, const std::string& clip_id,
         source_out_ms > asset->duration_ms) return false;
     const auto new_duration = source_out_ms - source_in_ms;
     if (clip->incoming_transition.duration_ms > new_duration ||
-        clip->animation.duration_ms > new_duration || clip->fade_in_ms > new_duration ||
-        clip->fade_out_ms > new_duration) return false;
+        clip->animation.duration_ms > new_duration ||
+        clip->incoming_transition.fade_in_ms > new_duration ||
+        clip->incoming_transition.fade_out_ms > new_duration) return false;
     clip->source_in_ms = source_in_ms;
     clip->source_out_ms = source_out_ms;
     return true;
@@ -121,7 +124,11 @@ bool Project::set_transition(const std::string& track_id, const std::string& cli
     if (!clip) return false;
     const auto clip_duration = clip->source_out_ms - clip->source_in_ms;
     if (transition.kind == TransitionKind::None) transition.duration_ms = 0;
-    if (transition.duration_ms > clip_duration) return false;
+    if (transition.duration_ms > clip_duration || transition.fade_in_ms < 0 ||
+        transition.fade_in_ms > clip_duration || transition.fade_out_ms < 0 ||
+        transition.fade_out_ms > clip_duration ||
+        (track->kind == TrackKind::Audio &&
+         (transition.fade_in_ms != 0 || transition.fade_out_ms != 0))) return false;
     clip->incoming_transition = transition;
     return true;
 }
@@ -135,19 +142,6 @@ bool Project::set_clip_animation(const std::string& track_id, const std::string&
     if (!clip || animation.duration_ms > clip->source_out_ms - clip->source_in_ms) return false;
     if (animation.kind == AnimationKind::None) animation.duration_ms = 0;
     clip->animation = animation;
-    return true;
-}
-
-bool Project::set_clip_fades(const std::string& track_id, const std::string& clip_id,
-                             std::int64_t fade_in_ms, std::int64_t fade_out_ms) {
-    Track* track = find_track(track_id);
-    if (!track || track->kind == TrackKind::Audio || fade_in_ms < 0 || fade_out_ms < 0) return false;
-    Clip* clip = find_clip(*track, clip_id);
-    if (!clip) return false;
-    const auto duration = clip->source_out_ms - clip->source_in_ms;
-    if (fade_in_ms > duration || fade_out_ms > duration) return false;
-    clip->fade_in_ms = fade_in_ms;
-    clip->fade_out_ms = fade_out_ms;
     return true;
 }
 
@@ -245,10 +239,13 @@ bool Project::validate(std::string* error) const {
                 return fail("A transition is longer than its clip.");
             if (static_cast<int>(clip.animation.kind) < 0 || static_cast<int>(clip.animation.kind) > 8 ||
                 clip.animation.duration_ms < 0 || clip.animation.duration_ms > clip_duration ||
-                clip.fade_in_ms < 0 || clip.fade_in_ms > clip_duration ||
-                clip.fade_out_ms < 0 || clip.fade_out_ms > clip_duration ||
+                clip.incoming_transition.fade_in_ms < 0 ||
+                clip.incoming_transition.fade_in_ms > clip_duration ||
+                clip.incoming_transition.fade_out_ms < 0 ||
+                clip.incoming_transition.fade_out_ms > clip_duration ||
                 (track.kind == TrackKind::Audio && (clip.animation.kind != AnimationKind::None ||
-                 clip.animation.duration_ms != 0 || clip.fade_in_ms != 0 || clip.fade_out_ms != 0)))
+                 clip.animation.duration_ms != 0 || clip.incoming_transition.fade_in_ms != 0 ||
+                 clip.incoming_transition.fade_out_ms != 0)))
                 return fail("A clip has invalid animation or fade settings.");
         }
     }
