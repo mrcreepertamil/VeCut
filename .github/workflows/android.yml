@@ -9,10 +9,15 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   android-apk:
     name: Build C++ Qt Android APK (arm64)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -33,7 +38,6 @@ jobs:
           echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/26.1.10909125" >> "$GITHUB_ENV"
 
       - name: Install Qt for Android
-        id: install-qt
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.3'
@@ -59,22 +63,34 @@ jobs:
       - name: Build Android APK
         run: cmake --build build-android --target apk --parallel 2
 
-      - name: Verify APK was generated
+      - name: Prepare a simple APK download
+        shell: bash
         run: |
-          find build-android -type f -name '*.apk' -print -quit | grep -q .
-          echo "Android APK generated successfully."
+          set -euo pipefail
+          mkdir -p dist
+          APK_PATH="$(find build-android -type f -name '*.apk' -print -quit)"
+          if [ -z "$APK_PATH" ]; then
+            echo "No APK was produced by the Android build."
+            exit 1
+          fi
+          cp "$APK_PATH" dist/VeCut-android-arm64.apk
+          sha256sum dist/VeCut-android-arm64.apk > dist/VeCut-android-arm64.apk.sha256
+          ls -lh dist/
 
-      - name: Upload Android APK
+      - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: vecut-android-arm64-apk
-          path: build-android/**/*.apk
+          name: VeCut-Android-ARM64
+          path: |
+            dist/VeCut-android-arm64.apk
+            dist/VeCut-android-arm64.apk.sha256
           if-no-files-found: error
           retention-days: 14
 
   engine-tests:
     name: C++ engine tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
