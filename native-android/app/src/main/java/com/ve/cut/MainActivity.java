@@ -23,6 +23,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.text.InputType;
 import android.widget.ScrollView;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -52,6 +53,8 @@ public final class MainActivity extends Activity {
     private int selectedClipId = -1;
     private long selectedClipDurationMs = 0;
     private TextView playButton;
+    private SeekBar previewSeekBar;
+    private long previewDurationMs;
     private boolean playing;
     private NativeMediaEngine mediaEngine;
     private PluginHost pluginHost;
@@ -98,7 +101,7 @@ public final class MainActivity extends Activity {
 
         content.addView(buildPreview(), new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(226)));
-        content.addView(buildPreviewControls(), marginParams(48, 8, 0, 14));
+        content.addView(buildPreviewControls(), marginParams(64, 8, 0, 14));
         content.addView(buildTimelineHeader(), marginParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 42, 0, 8));
         content.addView(buildTimeline(), new LinearLayout.LayoutParams(
@@ -198,6 +201,8 @@ public final class MainActivity extends Activity {
     }
 
     private View buildPreviewControls() {
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
         TextView time = label("00:00:00", 12, MUTED, true);
@@ -223,7 +228,26 @@ public final class MainActivity extends Activity {
         TextView duration = label("00:00:00", 12, MUTED, true);
         duration.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         row.addView(duration, new LinearLayout.LayoutParams(0, dp(36), 1f));
-        return row;
+        container.addView(row, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(36)));
+
+        previewSeekBar = new SeekBar(this);
+        previewSeekBar.setMax(1000);
+        previewSeekBar.setProgress(0);
+        previewSeekBar.setEnabled(false);
+        previewSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) { }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) { }
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {
+                if (previewDurationMs > 0 && videoPreview != null && videoPreview.hasVideo()) {
+                    long targetMs = previewDurationMs * seekBar.getProgress() / seekBar.getMax();
+                    videoPreview.seekTo(targetMs);
+                }
+            }
+        });
+        container.addView(previewSeekBar, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(24)));
+        return container;
     }
 
     private View buildTimelineHeader() {
@@ -593,6 +617,8 @@ public final class MainActivity extends Activity {
     private void showPreviewFrame(Bitmap bitmap) {
         if (bitmap == null || previewImage == null) return;
         if (audioPreview != null) audioPreview.release();
+        previewDurationMs = 0;
+        if (previewSeekBar != null) previewSeekBar.setEnabled(false);
         if (videoPreview != null) {
             videoPreview.clearVideo();
             videoPreview.getView().setVisibility(View.GONE);
@@ -607,6 +633,12 @@ public final class MainActivity extends Activity {
     private void showVideoPreview(Uri uri) {
         if (videoPreview == null || uri == null) return;
         if (audioPreview != null) audioPreview.release();
+        previewDurationMs = selectedClipDurationMs;
+        if (previewSeekBar != null) {
+            previewSeekBar.setMax((int) Math.max(1, Math.min(Integer.MAX_VALUE, previewDurationMs)));
+            previewSeekBar.setProgress(0);
+            previewSeekBar.setEnabled(previewDurationMs > 0);
+        }
         previewImage.setVisibility(View.GONE);
         if (emptyPreview != null) emptyPreview.setVisibility(View.GONE);
         videoPreview.getView().setVisibility(View.VISIBLE);
@@ -624,6 +656,8 @@ public final class MainActivity extends Activity {
 
     private void showAudioPreview(Uri uri) {
         if (uri == null || audioPreview == null) return;
+        previewDurationMs = 0;
+        if (previewSeekBar != null) previewSeekBar.setEnabled(false);
         if (videoPreview != null) {
             videoPreview.clearVideo();
             videoPreview.getView().setVisibility(View.GONE);
