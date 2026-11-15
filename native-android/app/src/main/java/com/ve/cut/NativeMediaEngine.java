@@ -1,6 +1,6 @@
 package com.ve.cut;
 
-/** Java-facing JNI API for VeCut's native timeline and future media engine. */
+/** Java-facing JNI API for VeCut's native timeline and media engine. */
 public final class NativeMediaEngine {
     static {
         System.loadLibrary("vecut_engine");
@@ -20,9 +20,24 @@ public final class NativeMediaEngine {
         return nativeRemoveClip(clipId);
     }
 
+    /** Sets the full source duration when it is known from Android metadata. */
+    public boolean setClipDuration(int clipId, long durationMs) {
+        return nativeSetClipDuration(clipId, durationMs);
+    }
+
     /** Sets a source-time range in milliseconds; end must be greater than start. */
     public boolean trimClip(int clipId, long sourceInMs, long sourceOutMs) {
         return nativeTrimClip(clipId, sourceInMs, sourceOutMs);
+    }
+
+    /** Moves a clip to a zero-based position in the timeline. */
+    public boolean moveClip(int clipId, int targetIndex) {
+        return nativeMoveClip(clipId, targetIndex);
+    }
+
+    /** Splits a clip at source time and returns the new right-hand clip ID. */
+    public int splitClip(int clipId, long splitAtMs) {
+        return nativeSplitClip(clipId, splitAtMs);
     }
 
     public int getClipCount() {
@@ -40,7 +55,10 @@ public final class NativeMediaEngine {
     private native String nativeInitialize();
     private native int nativeAddClip(String uri, String mimeType);
     private native boolean nativeRemoveClip(int clipId);
+    private native boolean nativeSetClipDuration(int clipId, long durationMs);
     private native boolean nativeTrimClip(int clipId, long sourceInMs, long sourceOutMs);
+    private native boolean nativeMoveClip(int clipId, int targetIndex);
+    private native int nativeSplitClip(int clipId, long splitAtMs);
     private native int nativeGetClipCount();
     private native String nativeGetTimelineSummary();
     private native void nativeClearTimeline();
