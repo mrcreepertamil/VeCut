@@ -1003,6 +1003,10 @@ void MainWindow::save_project(bool save_as) {
                              static_cast<int>(clip.incoming_transition.kind));
             clip_item.insert("transitionDurationMs",
                              static_cast<double>(clip.incoming_transition.duration_ms));
+            clip_item.insert("animationKind", static_cast<int>(clip.animation.kind));
+            clip_item.insert("animationDurationMs", static_cast<double>(clip.animation.duration_ms));
+            clip_item.insert("fadeInMs", static_cast<double>(clip.fade_in_ms));
+            clip_item.insert("fadeOutMs", static_cast<double>(clip.fade_out_ms));
             clip_item.insert("volume", clip.volume);
             clips.append(clip_item);
         }
@@ -1145,9 +1149,15 @@ void MainWindow::open_project() {
             }
             const QJsonObject item = clip_value.toObject();
             const int transition_kind = item.value("transitionKind").toInt(0);
+            const int animation_kind = item.value("animationKind").toInt(0);
             if (transition_kind < static_cast<int>(vecut::TransitionKind::None) ||
                 transition_kind > static_cast<int>(vecut::TransitionKind::SlideRightToLeft)) {
                 status_label_->setText("Project contains an unknown transition type.");
+                return;
+            }
+            if (animation_kind < static_cast<int>(vecut::AnimationKind::None) ||
+                animation_kind > static_cast<int>(vecut::AnimationKind::RotateCounterClockwise)) {
+                status_label_->setText("Project contains an unknown clip animation.");
                 return;
             }
             vecut::Clip clip;
@@ -1160,6 +1170,10 @@ void MainWindow::open_project() {
                 static_cast<vecut::TransitionKind>(transition_kind);
             clip.incoming_transition.duration_ms =
                 read_integer(item, "transitionDurationMs", -1);
+            clip.animation.kind = static_cast<vecut::AnimationKind>(animation_kind);
+            clip.animation.duration_ms = read_integer(item, "animationDurationMs", 0);
+            clip.fade_in_ms = read_integer(item, "fadeInMs", 0);
+            clip.fade_out_ms = read_integer(item, "fadeOutMs", 0);
             clip.volume = item.value("volume").toDouble(1.0);
             if (!loaded.add_clip(track_id.toStdString(), std::move(clip))) {
                 status_label_->setText("Project contains a clip with invalid media, timing or track data.");
@@ -1379,8 +1393,45 @@ void MainWindow::edit_selected_transition() {
     duration->setValue(static_cast<int>(std::min<std::int64_t>(
         clip->incoming_transition.duration_ms, max_duration)));
     duration->setSuffix(" ms");
-    layout->addRow("Transition:", kind);
-    layout->addRow("Duration:", duration);
+    layout->addRow("Incoming transition:", kind);
+    layout->addRow("Transition duration:", duration);
+
+    auto* animation = new QComboBox(&dialog);
+    animation->addItem("None", static_cast<int>(vecut::AnimationKind::None));
+    animation->addItem("Zoom in", static_cast<int>(vecut::AnimationKind::ZoomIn));
+    animation->addItem("Zoom out", static_cast<int>(vecut::AnimationKind::ZoomOut));
+    animation->addItem("Pan left", static_cast<int>(vecut::AnimationKind::PanLeft));
+    animation->addItem("Pan right", static_cast<int>(vecut::AnimationKind::PanRight));
+    animation->addItem("Pan up", static_cast<int>(vecut::AnimationKind::PanUp));
+    animation->addItem("Pan down", static_cast<int>(vecut::AnimationKind::PanDown));
+    animation->addItem("Rotate clockwise", static_cast<int>(vecut::AnimationKind::RotateClockwise));
+    animation->addItem("Rotate counter-clockwise", static_cast<int>(vecut::AnimationKind::RotateCounterClockwise));
+    animation->setCurrentIndex(std::max(0, animation->findData(
+        static_cast<int>(clip->animation.kind))));
+    auto* animation_duration = new QSpinBox(&dialog);
+    animation_duration->setRange(0, std::max(0, max_duration));
+    animation_duration->setValue(static_cast<int>(std::min<std::int64_t>(
+        clip->animation.duration_ms, max_duration)));
+    animation_duration->setSuffix(" ms");
+
+    auto* fade_in = new QSpinBox(&dialog);
+    auto* fade_out = new QSpinBox(&dialog);
+    fade_in->setRange(0, std::max(0, max_duration));
+    fade_out->setRange(0, std::max(0, max_duration));
+    fade_in->setValue(static_cast<int>(std::min<std::int64_t>(clip->fade_in_ms, max_duration)));
+    fade_out->setValue(static_cast<int>(std::min<std::int64_t>(clip->fade_out_ms, max_duration)));
+    fade_in->setSuffix(" ms");
+    fade_out->setSuffix(" ms");
+
+    const bool visual_track = track->kind != vecut::TrackKind::Audio;
+    animation->setEnabled(visual_track);
+    animation_duration->setEnabled(visual_track);
+    fade_in->setEnabled(visual_track);
+    fade_out->setEnabled(visual_track);
+    layout->addRow("Clip animation (main / overlay):", animation);
+    layout->addRow("Animation duration:", animation_duration);
+    layout->addRow("Fade in:", fade_in);
+    layout->addRow("Fade out:", fade_out);
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
                                          Qt::Horizontal, &dialog);
     layout->addRow(buttons);
@@ -1392,14 +1443,21 @@ void MainWindow::edit_selected_transition() {
     transition.kind = static_cast<vecut::TransitionKind>(kind->currentData().toInt());
     transition.duration_ms = transition.kind == vecut::TransitionKind::None
         ? 0 : duration->value();
+    vecut::ClipAnimation clip_animation;
+    clip_animation.kind = static_cast<vecut::AnimationKind>(animation->currentData().toInt());
+    clip_animation.duration_ms = clip_animation.kind == vecut::AnimationKind::None
+        ? 0 : animation_duration->value();
     if (!project_.set_transition(selected_track_id_.toStdString(),
-            selected_clip_id_.toStdString(), transition)) {
-        status_label_->setText("Could not apply that transition.");
+            selected_clip_id_.toStdString(), transition) ||
+        (visual_track && (!project_.set_clip_animation(selected_track_id_.toStdString(),
+            selected_clip_id_.toStdString(), clip_animation) ||
+         !project_.set_clip_fades(selected_track_id_.toStdString(),
+            selected_clip_id_.toStdString(), fade_in->value(), fade_out->value())))) {
+        status_label_->setText("Could not apply those transition or animation settings.");
         return;
     }
     timeline_widget_->refresh();
-    status_label_->setText("Clip transition saved in the project.");
-}
+    status_label_->setText("Transition, animation and fade settings saved in the project.");
 
 
 void MainWindow::toggle_timeline_audio() {
