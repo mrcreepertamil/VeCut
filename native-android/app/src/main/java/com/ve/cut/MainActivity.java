@@ -443,6 +443,7 @@ public final class MainActivity extends Activity {
                 Bitmap frame = MediaProbe.extractPreview(getApplicationContext(), uri, source.mimeType);
                 int clipId = mediaEngine.addClip(source.uri, source.mimeType);
                 if (clipId < 0) continue;
+                if (info.durationMs > 0) mediaEngine.setClipDuration(clipId, info.durationMs);
                 runOnUiThread(() -> {
                     if (isFinishing() || isDestroyed()) return;
                     addClipToTrack(clipId, source.displayName, source.mimeType, info, source.uri);
@@ -483,6 +484,9 @@ public final class MainActivity extends Activity {
             MediaProbe.Info info = MediaProbe.inspect(getApplicationContext(), uri);
             Bitmap frame = MediaProbe.extractPreview(getApplicationContext(), uri, mimeType);
             int clipId = mediaEngine.addClip(uri.toString(), mimeType);
+            if (clipId >= 0 && info.durationMs > 0) {
+                mediaEngine.setClipDuration(clipId, info.durationMs);
+            }
             runOnUiThread(() -> {
                 if (isFinishing() || isDestroyed()) return;
                 if (clipId < 0) {
