@@ -1,8 +1,8 @@
 # VeCut
 
-**VeCut is an in-development cross-platform video editor.** The long-term target is one C++17 application and one shared editor experience on Windows, Android, Linux, macOS and iOS.
+**VeCut is an in-development cross-platform video editor.** The target is one C++17 application and one shared editor experience on Windows, Android, Linux, macOS and iOS.
 
-The project is moving away from Flutter/Dart and separate platform-language editor implementations. The application UI and editing engine are being built in C++17. Operating-system APIs may still be used behind narrow integration layers for media codecs, files, windowing, packaging and device capabilities; those layers are not separate editor implementations.
+VeCut's editor UI and editing engine are implemented in C++17. Flutter and Dart application code and build dependencies have been removed from the repository. Operating-system APIs may still be used behind narrow integration layers for media codecs, files, windowing, packaging and device capabilities; those layers are not separate editor implementations.
 
 ## Technology direction
 
@@ -14,9 +14,9 @@ The project is moving away from Flutter/Dart and separate platform-language edit
 
 ## Responsive application workspace
 
-The Qt UI now switches layout based on available window width:
+The Qt UI switches layout based on available window width:
 
-- **Phone portrait (narrow than 720 px):** media bin above the preview, with a compact timeline below. Track buttons use shorter labels and the window can shrink to phone-sized dimensions.
+- **Phone portrait (narrower than 720 px):** media bin above the preview, with a compact timeline below. Track buttons use shorter labels and the window can shrink to phone-sized dimensions.
 - **Desktop landscape (720 px and wider):** media bin beside the larger preview, with the timeline spanning the bottom.
 - The same C++ widgets and project state are used in both layouts; this is a responsive rearrangement, not separate Android/iOS and PC editor implementations.
 
@@ -57,10 +57,6 @@ Use the Qt kit and CMake toolchain appropriate to the target platform. Android a
 
 `native-android/` is the existing Android prototype retained during migration. Its Java activity and Android-specific media classes are transitional and have **not** yet been replaced by the C++/Qt application. The Android CMake target also compiles the shared C++ project model. The existing prototype preview and timeline are not yet feature parity with the cross-platform app.
 
-## Legacy prototype
-
-The old Flutter/Dart prototype remains in `.oldproto/` as a temporary reference. It is not part of the new C++ application. Do not remove it until its useful features have been ported and verified.
-
 ## Current status
 
-The shared C++17 project model, first engine tests, and responsive Qt media-bin/track workspace are in place. No local or CI build has been verified for this update, and no cross-platform release builds have been verified. Do not treat the five platform targets as completed until each has been built, run and tested on its own toolchain.
+The shared C++17 project model, first engine tests, and responsive Qt media-bin/track workspace are in place. The repository's Windows and Android CI workflows target the C++/Qt application; their successful execution and the cross-platform release builds still need to be verified. Do not treat the five platform targets as completed until each has been built, run and tested on its own toolchain.
