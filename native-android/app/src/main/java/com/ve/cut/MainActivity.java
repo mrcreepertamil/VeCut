@@ -545,9 +545,21 @@ public final class MainActivity extends Activity {
         if (selectedClipId < 0) { toast("Select a timeline clip first."); return; }
         String[] types = {"None", "Fade", "Dissolve", "Wipe left → right",
                 "Wipe right → left", "Slide left → right", "Slide right → left"};
+        final int[] chosenType = {selectedTransitionType};
         LinearLayout fields = new LinearLayout(this);
         fields.setOrientation(LinearLayout.VERTICAL);
         fields.setPadding(dp(20), dp(8), dp(20), 0);
+        android.widget.RadioGroup choices = new android.widget.RadioGroup(this);
+        choices.setOrientation(android.widget.RadioGroup.VERTICAL);
+        for (int i = 0; i < types.length; i++) {
+            android.widget.RadioButton option = new android.widget.RadioButton(this);
+            option.setText(types[i]);
+            option.setTextColor(TEXT);
+            option.setId(1000 + i);
+            choices.addView(option);
+        }
+        choices.check(1000 + selectedTransitionType);
+        choices.setOnCheckedChangeListener((group, checkedId) -> chosenType[0] = checkedId - 1000);
         TextView durationLabel = label("", 12, TEXT, true);
         SeekBar duration = new SeekBar(this);
         duration.setMax(58); // 100–3000 ms in 50 ms increments.
@@ -561,33 +573,33 @@ public final class MainActivity extends Activity {
             @Override public void onStopTrackingTouch(SeekBar bar) { }
         });
         updateDuration.run();
+        fields.addView(choices);
         fields.addView(durationLabel);
         fields.addView(duration);
         new AlertDialog.Builder(this).setTitle("Custom clip transition")
-                .setSingleChoiceItems(types, selectedTransitionType, (dialog, which) -> {
-                    selectedTransitionType = which;
-                    // Keep the chooser open so duration can be adjusted before applying.
-                })
                 .setView(fields)
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Apply", (dialog, which) -> {
-                    long durationMs = selectedTransitionType == 0 ? 0 : 100 + duration.getProgress() * 50L;
+                    int type = chosenType[0];
+                    long durationMs = type == 0 ? 0 : 100 + duration.getProgress() * 50L;
                     long clipLength = selectedSourceOutMs >= 0
                             ? selectedSourceOutMs - selectedSourceInMs : selectedClipDurationMs;
-                    if (selectedTransitionType != 0 && clipLength > 0 && durationMs > clipLength) {
+                    if (type != 0 && clipLength > 0 && durationMs > clipLength) {
                         toast("Transition duration cannot exceed the trimmed clip length.");
                         return;
                     }
-                    if (!mediaEngine.setClipTransition(selectedClipId, selectedTransitionType, durationMs)) {
+                    if (!mediaEngine.setClipTransition(selectedClipId, type, durationMs)) {
                         toast("Could not save this transition.");
                         return;
                     }
+                    selectedTransitionType = type;
                     selectedTransitionDurationMs = durationMs;
-                    selectedClip.setText("Clip #" + selectedClipId + " · " + types[selectedTransitionType]
+                    selectedClip.setText("Clip #" + selectedClipId + " · " + types[type]
                             + (durationMs > 0 ? " · " + durationMs + " ms" : ""));
                     toast("Transition saved in the C++ timeline.");
                 }).show();
     }
+
     private String formatTime(long milliseconds) {
         long seconds = Math.max(0, milliseconds / 1000);
         return String.format(Locale.US, "%02d:%02d", seconds / 60, seconds % 60);
