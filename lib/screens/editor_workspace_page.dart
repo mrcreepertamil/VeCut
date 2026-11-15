@@ -621,8 +621,8 @@ class _EditorWorkspacePageState extends State<EditorWorkspacePage> {
                               child: ColoredBox(
                                 color: Colors.black.withOpacity(
                                   [
-                                    _fadeInMs > 0 ? (1 - currentPosition.inMilliseconds / _fadeInMs).clamp(0.0, 1.0) : 0.0,
-                                    _fadeOutMs > 0 ? ((currentPosition.inMilliseconds - (_duration.inMilliseconds - _fadeOutMs)) / _fadeOutMs).clamp(0.0, 1.0) : 0.0,
+                                    _fadeInMs > 0 ? (1 - currentPosition.inMilliseconds / _fadeInMs).clamp(0.0, 1.0).toDouble() : 0.0,
+                                    _fadeOutMs > 0 ? ((currentPosition.inMilliseconds - (_duration.inMilliseconds - _fadeOutMs)) / _fadeOutMs).clamp(0.0, 1.0).toDouble() : 0.0,
                                   ].reduce((a, b) => a > b ? a : b),
                                 ),
                               ),
