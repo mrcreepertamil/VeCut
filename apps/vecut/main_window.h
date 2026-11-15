@@ -1,6 +1,8 @@
 #pragma once
 
 #include "vecut/project.h"
+#include "video_preview.h"
+#include "audio_preview.h"
 
 #include <QString>
 #include <QImage>
@@ -62,15 +64,16 @@ private:
     QListWidget* media_list_ = nullptr;
     TimelineWidget* timeline_widget_ = nullptr;
     QLabel* preview_label_ = nullptr;
-    QVideoSink* preview_video_sink_ = nullptr;
+
     QImage current_preview_frame_;
     QTimer* preview_effect_timer_ = nullptr;
     std::int64_t preview_effect_time_ms_ = 0;
     QStackedWidget* preview_stack_ = nullptr;
     QSlider* preview_seek_ = nullptr;
     QPushButton* preview_play_button_ = nullptr;
+    VideoPreview* video_preview_ = nullptr;
+    AudioPreview* audio_preview_ = nullptr;
     QMediaPlayer* preview_player_ = nullptr;
-    QAudioOutput* preview_audio_ = nullptr;
     QLabel* media_details_ = nullptr;
     QLabel* status_label_ = nullptr;
     QPushButton* add_video_button_ = nullptr;
