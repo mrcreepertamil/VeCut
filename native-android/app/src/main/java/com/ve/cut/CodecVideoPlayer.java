@@ -21,6 +21,7 @@ public final class CodecVideoPlayer {
     private volatile boolean stopRequested;
     private volatile boolean paused;
     private volatile boolean playing;
+    private volatile boolean finished;
     private Thread worker;
 
     public synchronized void play(Uri uri, Surface surface, Listener listener) {
@@ -30,6 +31,7 @@ public final class CodecVideoPlayer {
             return;
         }
         stopRequested = false;
+        finished = false;
         paused = false;
         playing = true;
         worker = new Thread(() -> decode(uri, surface, listener), "VeCut-MediaCodec");
@@ -52,7 +54,7 @@ public final class CodecVideoPlayer {
 
     public boolean canResume() {
         Thread current = worker;
-        return current != null && current.isAlive() && !stopRequested;
+        return current != null && current.isAlive() && !stopRequested && !finished;
     }
 
     public synchronized void stop() {
@@ -153,9 +155,11 @@ public final class CodecVideoPlayer {
                 }
             }
             playing = false;
+            finished = true;
             if (!stopRequested) listener.onCompleted();
         } catch (Exception error) {
             playing = false;
+            finished = true;
             if (!stopRequested) listener.onError(error.getMessage() == null
                     ? error.getClass().getSimpleName() : error.getMessage());
         } finally {
