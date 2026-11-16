@@ -73,8 +73,6 @@ public:
     bool add_track(Track track);
     bool add_clip(const std::string& track_id, Clip clip);
     bool remove_clip(const std::string& track_id, const std::string& clip_id);
-    // Removes a clip and closes the resulting gap on that track only.
-    bool ripple_delete_clip(const std::string& track_id, const std::string& clip_id);
     bool trim_clip(const std::string& track_id, const std::string& clip_id,
                    std::int64_t source_in_ms, std::int64_t source_out_ms);
     bool set_transition(const std::string& track_id, const std::string& clip_id,
