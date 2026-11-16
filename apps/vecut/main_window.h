@@ -58,7 +58,6 @@ private:
     void edit_selected_transition();
     void edit_selected_volume();
     void remove_selected_clip();
-    void ripple_delete_selected_clip();
     void toggle_timeline_audio();
     void stop_timeline_audio();
     void update_timeline_audio();
@@ -107,7 +106,6 @@ private:
     QElapsedTimer audio_mix_clock_;
     bool timeline_audio_playing_ = false;
     QPushButton* remove_clip_button_ = nullptr;
-    QPushButton* ripple_delete_button_ = nullptr;
     QPushButton* undo_button_ = nullptr;
     QPushButton* redo_button_ = nullptr;
     std::vector<vecut::Project> undo_stack_;
