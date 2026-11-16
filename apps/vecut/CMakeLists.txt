@@ -27,8 +27,8 @@ if(ANDROID)
     set_target_properties(VeCut PROPERTIES
         QT_ANDROID_PACKAGE_NAME "com.mrcreepertamil.vecut"
         QT_ANDROID_APP_NAME "VeCut"
-        QT_ANDROID_MIN_SDK_VERSION 24
-        QT_ANDROID_TARGET_SDK_VERSION 35
+        QT_ANDROID_MIN_SDK_VERSION 26
+        QT_ANDROID_TARGET_SDK_VERSION 33
     )
 endif()
 
