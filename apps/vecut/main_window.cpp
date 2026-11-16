@@ -641,7 +641,6 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     transition_button_ = new QPushButton("Transition", timeline_panel_);
     volume_button_ = new QPushButton("Volume", timeline_panel_);
     remove_clip_button_ = new QPushButton("Remove clip", timeline_panel_);
-    ripple_delete_button_ = new QPushButton("Ripple delete", timeline_panel_);
     add_video_button_ = new QPushButton("+ Video track", timeline_panel_);
     add_audio_button_ = new QPushButton("+ Audio track", timeline_panel_);
     add_video_button_->setMinimumHeight(40);
@@ -653,7 +652,6 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     timeline_audio_button_ = new QPushButton("Play timeline audio", timeline_panel_);
     timeline_toolbar->addWidget(timeline_audio_button_);
     timeline_toolbar->addWidget(remove_clip_button_);
-    timeline_toolbar->addWidget(ripple_delete_button_);
     timeline_toolbar->addWidget(add_video_button_);
     timeline_toolbar->addWidget(add_audio_button_);
     timeline_layout->addLayout(timeline_toolbar);
@@ -754,8 +752,6 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
             [this] { update_timeline_audio(); });
     connect(remove_clip_button_, &QPushButton::clicked, this,
             [this] { remove_selected_clip(); });
-    connect(ripple_delete_button_, &QPushButton::clicked, this,
-            [this] { ripple_delete_selected_clip(); });
 
     setStyleSheet(
         "QMainWindow,#root{background:#0f1015;}"
@@ -1881,25 +1877,6 @@ void MainWindow::remove_selected_clip() {
     timeline_widget_->selectClip({});
     timeline_widget_->refresh();
     status_label_->setText("Clip removed from the timeline. Source media remains in the media bin.");
-}
-
-
-void MainWindow::ripple_delete_selected_clip() {
-    if (selected_track_id_.isEmpty() || selected_clip_id_.isEmpty()) {
-        status_label_->setText("Select a timeline clip before ripple deleting.");
-        return;
-    }
-    push_undo_state();
-    if (!project_.ripple_delete_clip(selected_track_id_.toStdString(),
-                                     selected_clip_id_.toStdString())) {
-        status_label_->setText("Could not ripple delete the selected clip.");
-        return;
-    }
-    selected_track_id_.clear();
-    selected_clip_id_.clear();
-    timeline_widget_->selectClip({});
-    timeline_widget_->refresh();
-    status_label_->setText("Clip removed and the gap closed on this track. Other tracks are unchanged.");
 }
 
 void MainWindow::update_track_list() {
