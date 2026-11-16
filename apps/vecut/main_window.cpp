@@ -598,7 +598,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
             preview_seek_->setRange(0, static_cast<int>(std::min<qint64>(
                 duration, std::numeric_limits<int>::max())));
         });
-        connect(player, &QMediaPlayer::positionChanged, this, [this](qint64 position) {
+        connect(player, &QMediaPlayer::positionChanged, this, [this, player](qint64 position) {
             if (player == preview_player_ && !preview_seek_->isSliderDown())
                 preview_seek_->setValue(static_cast<int>(position));
             if (player == preview_player_) render_preview_frame();
