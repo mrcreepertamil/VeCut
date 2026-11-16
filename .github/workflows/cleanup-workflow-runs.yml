@@ -1,4 +1,4 @@
-name: Clean up all failed workflow runs
+name: Clean up failed workflow runs after 2 days
 
 on:
   schedule:
@@ -17,10 +17,10 @@ permissions:
 
 jobs:
   cleanup:
-    name: Remove all failed workflow runs
+    name: Remove old failed workflow runs
     runs-on: ubuntu-24.04
     steps:
-      - name: Delete failed workflow runs
+      - name: Delete failed workflow runs older than 2 days
         uses: actions/github-script@v7
         env:
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
@@ -29,9 +29,9 @@ jobs:
           script: |
             const { owner, repo } = context.repo;
             const dryRun = process.env.DRY_RUN === "true";
+            const cutoff = Date.now() - 2 * 24 * 60 * 60 * 1000;
 
-            // Read each page explicitly because the workflow-runs endpoint
-            // wraps its array in data.workflow_runs rather than data.
+            // Read every page so cleanup applies repository-wide.
             const runs = [];
             for (let page = 1; ; page++) {
               const response = await github.rest.actions.listWorkflowRunsForRepo({
@@ -49,18 +49,22 @@ jobs:
               if (pageRuns.length < 100) break;
             }
 
-            // Only completed failures are eligible, including orphaned runs.
-            const failedRuns = runs.filter(
-              run => run && run.status === "completed" && run.conclusion === "failure"
+            // Keep all non-failures and failures completed less than 48 hours ago.
+            const eligibleRuns = runs.filter(run =>
+              run &&
+              run.status === "completed" &&
+              run.conclusion === "failure" &&
+              run.updated_at &&
+              Date.parse(run.updated_at) <= cutoff
             );
 
-            core.info(`Found ${failedRuns.length} completed failed workflow run(s).`);
+            core.info(`Found ${eligibleRuns.length} failed workflow run(s) completed at least 48 hours ago.`);
             core.info(dryRun ? "DRY RUN: no runs will be deleted." : "Deletion mode enabled.");
 
             let deleted = 0;
             let failed = 0;
 
-            for (const run of failedRuns) {
+            for (const run of eligibleRuns) {
               if (dryRun) {
                 core.info(`Would delete run ${run.id}: ${run.name} (${run.html_url})`);
                 continue;
@@ -80,7 +84,7 @@ jobs:
               }
             }
 
-            core.info(`Cleanup summary: deleted=${deleted}, failed=${failed}, previewed=${dryRun ? failedRuns.length : 0}`);
+            core.info(`Cleanup summary: deleted=${deleted}, failed=${failed}, previewed=${dryRun ? eligibleRuns.length : 0}`);
             if (failed > 0) {
               core.setFailed(`Failed to delete ${failed} workflow run(s).`);
             }
