@@ -97,29 +97,6 @@ bool Project::remove_clip(const std::string& track_id, const std::string& clip_i
     return track->clips.size() != old_size;
 }
 
-
-bool Project::ripple_delete_clip(const std::string& track_id, const std::string& clip_id) {
-    Track* track = find_track(track_id);
-    if (!track) return false;
-
-    const auto target = std::find_if(track->clips.begin(), track->clips.end(),
-        [&](const Clip& clip) { return clip.id == clip_id; });
-    if (target == track->clips.end()) return false;
-
-    const std::int64_t removed_start = target->timeline_start_ms;
-    const std::int64_t removed_duration = target->source_out_ms - target->source_in_ms;
-    const std::int64_t removed_end = removed_start + removed_duration;
-
-    track->clips.erase(target);
-    for (auto& clip : track->clips) {
-        // Only clips beginning after the removed region move. Earlier clips and
-        // clips overlapping the removed region keep their positions.
-        if (clip.timeline_start_ms >= removed_end)
-            clip.timeline_start_ms -= removed_duration;
-    }
-    return true;
-}
-
 bool Project::trim_clip(const std::string& track_id, const std::string& clip_id,
                         std::int64_t source_in_ms, std::int64_t source_out_ms) {
     Track* track = find_track(track_id);
