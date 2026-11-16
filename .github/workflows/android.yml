@@ -71,7 +71,10 @@ jobs:
       - name: Inspect generated Android build targets
         run: cmake --build build-android --target help
 
-      - name: Build Android APK
+      - name: Compile C++ Android app
+        run: cmake --build build-android --target VeCut --parallel 2
+
+      - name: Package Android APK
         run: cmake --build build-android --target apk --parallel 2
 
       - name: Prepare a simple APK download
