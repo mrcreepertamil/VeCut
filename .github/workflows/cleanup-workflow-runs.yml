@@ -30,16 +30,28 @@ jobs:
             const { owner, repo } = context.repo;
             const dryRun = process.env.DRY_RUN === "true";
 
-            const runs = await github.paginate(
-              github.rest.actions.listWorkflowRunsForRepo,
-              { owner, repo, per_page: 100 },
-              response => response.data.workflow_runs
-            );
+            // Read each page explicitly because the workflow-runs endpoint
+            // wraps its array in data.workflow_runs rather than data.
+            const runs = [];
+            for (let page = 1; ; page++) {
+              const response = await github.rest.actions.listWorkflowRunsForRepo({
+                owner,
+                repo,
+                per_page: 100,
+                page
+              });
 
-            // Only completed failures are eligible. This also safely handles
-            // orphaned runs because no separate unfiltered orphan cleanup exists.
+              const pageRuns = Array.isArray(response.data.workflow_runs)
+                ? response.data.workflow_runs
+                : [];
+
+              runs.push(...pageRuns);
+              if (pageRuns.length < 100) break;
+            }
+
+            // Only completed failures are eligible, including orphaned runs.
             const failedRuns = runs.filter(
-              run => run.status === "completed" && run.conclusion === "failure"
+              run => run && run.status === "completed" && run.conclusion === "failure"
             );
 
             core.info(`Found ${failedRuns.length} completed failed workflow run(s).`);
