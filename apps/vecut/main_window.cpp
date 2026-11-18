@@ -56,6 +56,7 @@
 #include <QSplitter>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QStyle>
 
 #include <algorithm>
 #include <limits>
@@ -779,15 +780,19 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 
     auto* home_header = new QHBoxLayout();
     auto* home_brand = new QLabel("VeCut", home_page_);
-    home_brand->setStyleSheet("font-size:25px;font-weight:900;color:#17191f;");
+    home_brand->setStyleSheet("font-size:25px;font-weight:900;color:#f4f5fa;");
     home_header->addWidget(home_brand);
     home_header->addStretch();
-    auto* search_button = new QPushButton("⌕", home_page_);
-    auto* help_button = new QPushButton("?", home_page_);
-    auto* settings_button = new QPushButton("⚙", home_page_);
+    auto* search_button = new QPushButton(home_page_);
+    auto* help_button = new QPushButton(home_page_);
+    auto* settings_button = new QPushButton(home_page_);
+    search_button->setIcon(style()->standardIcon(QStyle::SP_FileDialogContentsView));
+    help_button->setIcon(style()->standardIcon(QStyle::SP_DialogHelpButton));
+    settings_button->setIcon(style()->standardIcon(QStyle::SP_FileDialogDetailedView));
     for (auto* button : {search_button, help_button, settings_button}) {
         button->setFixedSize(42, 42);
-        button->setStyleSheet("QPushButton{background:transparent;border:0;color:#20232b;font-size:25px;font-weight:600;padding:0;}");
+        button->setIconSize(QSize(23, 23));
+        button->setStyleSheet("QPushButton{background:#191d24;border:1px solid #303843;border-radius:12px;padding:0;} QPushButton:pressed{background:#263b31;}");
         home_header->addWidget(button);
     }
     home_layout->addLayout(home_header);
@@ -803,11 +808,15 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 
     auto* start_cards = new QHBoxLayout();
     start_cards->setSpacing(12);
-    auto* new_video = new QPushButton("＋\nNew video", home_content);
+    auto* new_video = new QPushButton("New video", home_content);
+    new_video->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
+    new_video->setIconSize(QSize(38, 38));
     new_video->setObjectName("homePrimary");
     new_video->setMinimumHeight(132);
     new_video->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    auto* edit_photo = new QPushButton("▧\nEdit photo", home_content);
+    auto* edit_photo = new QPushButton("Edit photo", home_content);
+    edit_photo->setIcon(style()->standardIcon(QStyle::SP_FileDialogListView));
+    edit_photo->setIconSize(QSize(34, 34));
     edit_photo->setObjectName("homePrimary");
     edit_photo->setMinimumHeight(132);
     edit_photo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -822,19 +831,26 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
         "AutoCut", "Retouch", "AI story maker", "Desktop editor",
         "Auto captions", "AI generator", "Remove background", "All tools"
     };
-    const QStringList tool_icons = {"▣", "✧", "▤", "▱", "CC", "✦", "♙", "••"};
+    const QList<QStyle::StandardPixmap> tool_icons = {
+        QStyle::SP_MediaPlay, QStyle::SP_DialogApplyButton,
+        QStyle::SP_FileDialogContentsView, QStyle::SP_ComputerIcon,
+        QStyle::SP_FileDialogDetailedView, QStyle::SP_DesktopIcon,
+        QStyle::SP_DirIcon, QStyle::SP_DialogOpenButton
+    };
     for (int i = 0; i < tool_names.size(); ++i) {
         auto* tile = new QWidget(home_content);
         auto* tile_layout = new QVBoxLayout(tile);
         tile_layout->setContentsMargins(0, 0, 0, 0);
         tile_layout->setSpacing(5);
-        auto* tile_button = new QPushButton(tool_icons[i], tile);
+        auto* tile_button = new QPushButton(tile);
+        tile_button->setIcon(style()->standardIcon(tool_icons[i]));
+        tile_button->setIconSize(QSize(30, 30));
         tile_button->setMinimumHeight(66);
-        tile_button->setStyleSheet("QPushButton{background:#f2f3f5;border:0;border-radius:13px;color:#20232b;font-size:25px;font-weight:700;} QPushButton:pressed{background:#e5f6eb;}");
+        tile_button->setStyleSheet("QPushButton{background:#191f1d;border:1px solid #2c4637;border-radius:13px;color:#39d353;} QPushButton:pressed{background:#263b31;}");
         auto* tile_label = new QLabel(tool_names[i], tile);
         tile_label->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
         tile_label->setWordWrap(true);
-        tile_label->setStyleSheet("color:#20232b;font-size:11px;font-weight:650;");
+        tile_label->setStyleSheet("color:#d5ddd8;font-size:11px;font-weight:650;");
         tile_layout->addWidget(tile_button);
         tile_layout->addWidget(tile_label);
         tools_grid->addWidget(tile, i / 4, i % 4);
@@ -846,11 +862,13 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 
     auto* projects_header = new QHBoxLayout();
     auto* projects_title = new QLabel("Projects", home_content);
-    projects_title->setStyleSheet("font-size:21px;font-weight:800;color:#17191f;");
+    projects_title->setStyleSheet("font-size:21px;font-weight:800;color:#f4f5fa;");
     projects_header->addWidget(projects_title);
     projects_header->addStretch();
-    auto* project_sort = new QPushButton("☷", home_content);
-    project_sort->setStyleSheet("QPushButton{background:transparent;border:0;color:#20232b;font-size:24px;}");
+    auto* project_sort = new QPushButton(home_content);
+    project_sort->setIcon(style()->standardIcon(QStyle::SP_FileDialogDetailedView));
+    project_sort->setIconSize(QSize(22, 22));
+    project_sort->setStyleSheet("QPushButton{background:transparent;border:0;padding:6px;}");
     projects_header->addWidget(project_sort);
     content_layout->addLayout(projects_header);
 
@@ -858,13 +876,13 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     auto* empty_layout = new QVBoxLayout(empty_projects);
     empty_layout->setContentsMargins(0, 28, 0, 30);
     empty_layout->setSpacing(10);
-    auto* empty_icon = new QLabel("▢ ✂", empty_projects);
+    auto* empty_icon = new QLabel(empty_projects);
+    empty_icon->setPixmap(style()->standardIcon(QStyle::SP_FileDialogNewFolder).pixmap(56, 56));
     empty_icon->setAlignment(Qt::AlignCenter);
-    empty_icon->setStyleSheet("font-size:52px;color:#252832;");
     auto* empty_text = new QLabel("Your projects will appear here.\nStart creating now.", empty_projects);
     empty_text->setAlignment(Qt::AlignCenter);
     empty_text->setWordWrap(true);
-    empty_text->setStyleSheet("font-size:15px;color:#858993;");
+    empty_text->setStyleSheet("font-size:15px;color:#929b98;");
     empty_layout->addWidget(empty_icon);
     empty_layout->addWidget(empty_text);
     content_layout->addWidget(empty_projects);
@@ -874,14 +892,21 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 
     auto* bottom_nav = new QHBoxLayout();
     bottom_nav->setContentsMargins(0, 4, 0, 0);
-    const QStringList nav_names = {"✂\nEdit", "▥\nTemplates", "✥\nAI Lab", "♧\nInbox", "♙\nMe"};
+    const QStringList nav_names = {"Edit", "Templates", "AI Lab", "Inbox", "Me"};
+    const QList<QStyle::StandardPixmap> nav_icons = {
+        QStyle::SP_FileDialogContentsView, QStyle::SP_DirIcon,
+        QStyle::SP_ComputerIcon, QStyle::SP_MessageBoxInformation,
+        QStyle::SP_FileDialogInfoView
+    };
     for (int i = 0; i < nav_names.size(); ++i) {
         auto* nav_button = new QPushButton(nav_names[i], home_page_);
+        nav_button->setIcon(style()->standardIcon(nav_icons[i]));
+        nav_button->setIconSize(QSize(20, 20));
         nav_button->setMinimumHeight(56);
         nav_button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
         nav_button->setStyleSheet(i == 0
-            ? "QPushButton{background:transparent;border:0;color:#17191f;font-size:13px;font-weight:800;}"
-            : "QPushButton{background:transparent;border:0;color:#858993;font-size:12px;}");
+            ? "QPushButton{background:transparent;border:0;color:#39d353;font-size:12px;font-weight:800;}"
+            : "QPushButton{background:transparent;border:0;color:#929b98;font-size:11px;}");
         bottom_nav->addWidget(nav_button);
         if (i != 0) {
             connect(nav_button, &QPushButton::clicked, this, [this, name = nav_names[i]] {
@@ -892,9 +917,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     home_layout->addLayout(bottom_nav);
 
     home_page_->setStyleSheet(
-        "QWidget#homePage{background:#ffffff;}"
-        "QPushButton#homePrimary{background:#8cdef2;border:0;border-radius:17px;color:#10212a;font-size:20px;font-weight:800;padding:12px;}"
-        "QPushButton#homePrimary:pressed{background:#71cce4;}"
+        "QWidget#homePage{background:#100e16;color:#f4f5fa;}"
+        "QPushButton#homePrimary{background:#18251d;border:1px solid #39d353;border-radius:17px;color:#f4f5fa;font-size:18px;font-weight:800;padding:12px;text-align:left;}"
+        "QPushButton#homePrimary:pressed{background:#263b31;}"
     );
     app_stack_->addWidget(home_page_);
     app_stack_->addWidget(root);
