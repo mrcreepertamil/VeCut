@@ -66,6 +66,8 @@ private:
                             std::int64_t timeline_start_ms);
 
     vecut::Project project_;
+    QStackedWidget* app_stack_ = nullptr;
+    QWidget* home_page_ = nullptr;
     QSplitter* workspace_ = nullptr;
     QFrame* timeline_panel_ = nullptr;
     QListWidget* media_list_ = nullptr;
