@@ -874,7 +874,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 
     auto* bottom_nav = new QHBoxLayout();
     bottom_nav->setContentsMargins(0, 4, 0, 0);
-    const QStringList nav_names = {"✂\\nEdit", "▥\\nTemplates", "✥\\nAI Lab", "♧\\nInbox", "♙\\nMe"};
+    const QStringList nav_names = {"✂\nEdit", "▥\nTemplates", "✥\nAI Lab", "♧\nInbox", "♙\nMe"};
     for (int i = 0; i < nav_names.size(); ++i) {
         auto* nav_button = new QPushButton(nav_names[i], home_page_);
         nav_button->setMinimumHeight(56);
@@ -885,7 +885,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
         bottom_nav->addWidget(nav_button);
         if (i != 0) {
             connect(nav_button, &QPushButton::clicked, this, [this, name = nav_names[i]] {
-                QMessageBox::information(this, name.section('\\n', 1), "This section is coming soon.");
+                QMessageBox::information(this, name.section('\n', 1), "This section is coming soon.");
             });
         }
     }
