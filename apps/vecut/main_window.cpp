@@ -26,6 +26,8 @@
 #include <QFileInfo>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QGridLayout>
+#include <QMessageBox>
 #include <QLabel>
 #include <QListWidget>
 #include <QListWidgetItem>
@@ -766,7 +768,155 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
         "QPushButton#primaryButton{background:#16834a;border-color:#16834a;color:white;}"
         "QPushButton#primaryButton:hover{background:#1b9958;}"
     );
-    setCentralWidget(root);
+    // The mobile-first home screen is the app's landing page. The existing
+    // editor remains intact as the second page in the stack.
+    app_stack_ = new QStackedWidget(this);
+    home_page_ = new QWidget(app_stack_);
+    home_page_->setObjectName("homePage");
+    auto* home_layout = new QVBoxLayout(home_page_);
+    home_layout->setContentsMargins(16, 12, 16, 10);
+    home_layout->setSpacing(12);
+
+    auto* home_header = new QHBoxLayout();
+    auto* home_brand = new QLabel("VeCut", home_page_);
+    home_brand->setStyleSheet("font-size:25px;font-weight:900;color:#17191f;");
+    home_header->addWidget(home_brand);
+    home_header->addStretch();
+    auto* search_button = new QPushButton("⌕", home_page_);
+    auto* help_button = new QPushButton("?", home_page_);
+    auto* settings_button = new QPushButton("⚙", home_page_);
+    for (auto* button : {search_button, help_button, settings_button}) {
+        button->setFixedSize(42, 42);
+        button->setStyleSheet("QPushButton{background:transparent;border:0;color:#20232b;font-size:25px;font-weight:600;padding:0;}");
+        home_header->addWidget(button);
+    }
+    home_layout->addLayout(home_header);
+
+    auto* home_scroll = new QScrollArea(home_page_);
+    home_scroll->setWidgetResizable(true);
+    home_scroll->setFrameShape(QFrame::NoFrame);
+    home_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    auto* home_content = new QWidget(home_scroll);
+    auto* content_layout = new QVBoxLayout(home_content);
+    content_layout->setContentsMargins(0, 2, 0, 8);
+    content_layout->setSpacing(18);
+
+    auto* start_cards = new QHBoxLayout();
+    start_cards->setSpacing(12);
+    auto* new_video = new QPushButton("＋\nNew video", home_content);
+    new_video->setObjectName("homePrimary");
+    new_video->setMinimumHeight(132);
+    new_video->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    auto* edit_photo = new QPushButton("▧\nEdit photo", home_content);
+    edit_photo->setObjectName("homePrimary");
+    edit_photo->setMinimumHeight(132);
+    edit_photo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    start_cards->addWidget(new_video, 3);
+    start_cards->addWidget(edit_photo, 2);
+    content_layout->addLayout(start_cards);
+
+    auto* tools_grid = new QGridLayout();
+    tools_grid->setHorizontalSpacing(10);
+    tools_grid->setVerticalSpacing(14);
+    const QStringList tool_names = {
+        "AutoCut", "Retouch", "AI story maker", "Desktop editor",
+        "Auto captions", "AI generator", "Remove background", "All tools"
+    };
+    const QStringList tool_icons = {"▣", "✧", "▤", "▱", "CC", "✦", "♙", "••"};
+    for (int i = 0; i < tool_names.size(); ++i) {
+        auto* tile = new QWidget(home_content);
+        auto* tile_layout = new QVBoxLayout(tile);
+        tile_layout->setContentsMargins(0, 0, 0, 0);
+        tile_layout->setSpacing(5);
+        auto* tile_button = new QPushButton(tool_icons[i], tile);
+        tile_button->setMinimumHeight(66);
+        tile_button->setStyleSheet("QPushButton{background:#f2f3f5;border:0;border-radius:13px;color:#20232b;font-size:25px;font-weight:700;} QPushButton:pressed{background:#e5f6eb;}");
+        auto* tile_label = new QLabel(tool_names[i], tile);
+        tile_label->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
+        tile_label->setWordWrap(true);
+        tile_label->setStyleSheet("color:#20232b;font-size:11px;font-weight:650;");
+        tile_layout->addWidget(tile_button);
+        tile_layout->addWidget(tile_label);
+        tools_grid->addWidget(tile, i / 4, i % 4);
+        connect(tile_button, &QPushButton::clicked, this, [this, name = tool_names[i]] {
+            QMessageBox::information(this, name, name + " is not available yet.");
+        });
+    }
+    content_layout->addLayout(tools_grid);
+
+    auto* projects_header = new QHBoxLayout();
+    auto* projects_title = new QLabel("Projects", home_content);
+    projects_title->setStyleSheet("font-size:21px;font-weight:800;color:#17191f;");
+    projects_header->addWidget(projects_title);
+    projects_header->addStretch();
+    auto* project_sort = new QPushButton("☷", home_content);
+    project_sort->setStyleSheet("QPushButton{background:transparent;border:0;color:#20232b;font-size:24px;}");
+    projects_header->addWidget(project_sort);
+    content_layout->addLayout(projects_header);
+
+    auto* empty_projects = new QWidget(home_content);
+    auto* empty_layout = new QVBoxLayout(empty_projects);
+    empty_layout->setContentsMargins(0, 28, 0, 30);
+    empty_layout->setSpacing(10);
+    auto* empty_icon = new QLabel("▢ ✂", empty_projects);
+    empty_icon->setAlignment(Qt::AlignCenter);
+    empty_icon->setStyleSheet("font-size:52px;color:#252832;");
+    auto* empty_text = new QLabel("Your projects will appear here.\nStart creating now.", empty_projects);
+    empty_text->setAlignment(Qt::AlignCenter);
+    empty_text->setWordWrap(true);
+    empty_text->setStyleSheet("font-size:15px;color:#858993;");
+    empty_layout->addWidget(empty_icon);
+    empty_layout->addWidget(empty_text);
+    content_layout->addWidget(empty_projects);
+    content_layout->addStretch();
+    home_scroll->setWidget(home_content);
+    home_layout->addWidget(home_scroll, 1);
+
+    auto* bottom_nav = new QHBoxLayout();
+    bottom_nav->setContentsMargins(0, 4, 0, 0);
+    const QStringList nav_names = {"✂\\nEdit", "▥\\nTemplates", "✥\\nAI Lab", "♧\\nInbox", "♙\\nMe"};
+    for (int i = 0; i < nav_names.size(); ++i) {
+        auto* nav_button = new QPushButton(nav_names[i], home_page_);
+        nav_button->setMinimumHeight(56);
+        nav_button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+        nav_button->setStyleSheet(i == 0
+            ? "QPushButton{background:transparent;border:0;color:#17191f;font-size:13px;font-weight:800;}"
+            : "QPushButton{background:transparent;border:0;color:#858993;font-size:12px;}");
+        bottom_nav->addWidget(nav_button);
+        if (i != 0) {
+            connect(nav_button, &QPushButton::clicked, this, [this, name = nav_names[i]] {
+                QMessageBox::information(this, name.section('\\n', 1), "This section is coming soon.");
+            });
+        }
+    }
+    home_layout->addLayout(bottom_nav);
+
+    home_page_->setStyleSheet(
+        "QWidget#homePage{background:#ffffff;}"
+        "QPushButton#homePrimary{background:#8cdef2;border:0;border-radius:17px;color:#10212a;font-size:20px;font-weight:800;padding:12px;}"
+        "QPushButton#homePrimary:pressed{background:#71cce4;}"
+    );
+    app_stack_->addWidget(home_page_);
+    app_stack_->addWidget(root);
+    app_stack_->setCurrentWidget(home_page_);
+    setCentralWidget(app_stack_);
+
+    connect(new_video, &QPushButton::clicked, this, [this] {
+        app_stack_->setCurrentWidget(centralWidget()->findChild<QWidget*>("root"));
+    });
+    connect(edit_photo, &QPushButton::clicked, this, [this] {
+        app_stack_->setCurrentWidget(centralWidget()->findChild<QWidget*>("root"));
+        import_media();
+    });
+    connect(search_button, &QPushButton::clicked, this, [this] {
+        QMessageBox::information(this, "Search", "Project search will be available soon.");
+    });
+    connect(help_button, &QPushButton::clicked, this, [this] {
+        QMessageBox::information(this, "Help", "VeCut help is coming soon.");
+    });
+    connect(settings_button, &QPushButton::clicked, this, [this] {
+        QMessageBox::information(this, "Settings", "VeCut settings are coming soon.");
+    });
     apply_responsive_layout();
 }
 
