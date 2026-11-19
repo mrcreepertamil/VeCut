@@ -42,6 +42,7 @@
 #include <QAudioOutput>
 #include <QVideoSink>
 #include <QVideoFrame>
+#include <QSignalBlocker>
 #include <QTransform>
 #include <QStackedWidget>
 #include <QSlider>
@@ -76,6 +77,7 @@
 #include <QStringList>
 #include <utility>
 #include <functional>
+#include <memory>
 
 
 namespace {
