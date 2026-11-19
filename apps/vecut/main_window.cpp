@@ -1168,9 +1168,9 @@ void MainWindow::show_media_file_picker() {
 
     QDialog dialog(this);
     dialog.setWindowTitle("Choose media");
-    dialog.setMinimumSize(300, 440);
+    dialog.setMinimumSize(300, 460);
     dialog.resize(std::min(520, std::max(320, width() - 24)),
-                  std::min(760, std::max(460, height() - 40)));
+                  std::min(780, std::max(480, height() - 40)));
     dialog.setStyleSheet(
         "QDialog{background:#100E16;color:#f4f5fa;}"
         "QLabel{color:#f4f5fa;}"
@@ -1188,7 +1188,7 @@ void MainWindow::show_media_file_picker() {
 
     auto* layout = new QVBoxLayout(&dialog);
     layout->setContentsMargins(12, 12, 12, 12);
-    layout->setSpacing(9);
+    layout->setSpacing(8);
 
     auto* top_row = new QHBoxLayout();
     auto* title = new QLabel("Recent", &dialog);
@@ -1230,10 +1230,24 @@ void MainWindow::show_media_file_picker() {
 
     auto* selection_label = new QLabel("0 selected", &dialog);
     selection_label->setStyleSheet("font-weight:700;");
-    auto* preview_label = new QLabel("Selected media will appear here", &dialog);
+    layout->addWidget(selection_label);
+
+    auto* selected_scroll = new QScrollArea(&dialog);
+    selected_scroll->setWidgetResizable(true);
+    selected_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    selected_scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    selected_scroll->setFixedHeight(78);
+    selected_scroll->setStyleSheet("QScrollArea{background:#17151e;border:0;border-radius:7px;}");
+    auto* selected_strip = new QWidget(selected_scroll);
+    auto* selected_layout = new QHBoxLayout(selected_strip);
+    selected_layout->setContentsMargins(6, 4, 6, 4);
+    selected_layout->setSpacing(6);
+    selected_scroll->setWidget(selected_strip);
+    layout->addWidget(selected_scroll);
+
+    auto* preview_label = new QLabel("Tap media to add it to your selection", &dialog);
     preview_label->setStyleSheet("color:#a8a5b2;font-size:11px;");
     preview_label->setWordWrap(true);
-    layout->addWidget(selection_label);
     layout->addWidget(preview_label);
 
     auto* bottom_row = new QHBoxLayout();
@@ -1246,27 +1260,10 @@ void MainWindow::show_media_file_picker() {
     bottom_row->addWidget(next_button);
     layout->addLayout(bottom_row);
 
-    auto update_selection = [=]() {
-        QStringList selected_names;
-        int count = 0;
-        for (auto* list : lists) {
-            for (int i = 0; i < list->count(); ++i) {
-                auto* item = list->item(i);
-                if (item->checkState() == Qt::Checked) {
-                    ++count;
-                    if (selected_names.size() < 3)
-                        selected_names << item->data(Qt::UserRole).toString();
-                }
-            }
-        }
-        selection_label->setText(QString("%1 selected").arg(count));
-        preview_label->setText(selected_names.isEmpty()
-            ? "Selected media will appear here"
-            : selected_names.join("   •   "));
-        next_button->setEnabled(count > 0);
-    };
-
-    QMap<QString, QListWidgetItem*> items_by_path;
+    QMap<QString, QListWidgetItem*> unused_item_index;
+    QMap<QString, QPixmap> thumbnail_cache;
+    QMap<QString, QString> duration_cache;
+    QMap<QString, QListWidgetItem*> video_items;
     for (const GalleryEntry& entry : entries) {
         const QString name = entry.info.fileName();
         const QString item_text = entry.kind == vecut::MediaKind::Video
@@ -1280,7 +1277,11 @@ void MainWindow::show_media_file_picker() {
             if (entry.kind == vecut::MediaKind::Image) {
                 const QImage thumb = vecut::MediaProbe::image_thumbnail(
                     entry.path, QSize(184, 152));
-                if (!thumb.isNull()) item->setIcon(QIcon(QPixmap::fromImage(thumb)));
+                if (!thumb.isNull()) {
+                    const QPixmap pixmap = QPixmap::fromImage(thumb);
+                    item->setIcon(QIcon(pixmap));
+                    thumbnail_cache.insert(entry.path, pixmap);
+                }
             } else {
                 item->setIcon(style()->standardIcon(entry.kind == vecut::MediaKind::Video
                     ? QStyle::SP_MediaPlay : QStyle::SP_FileIcon));
@@ -1288,47 +1289,87 @@ void MainWindow::show_media_file_picker() {
             list->addItem(item);
             if (list == video_list && entry.kind != vecut::MediaKind::Video) item->setHidden(true);
             if (list == photo_list && entry.kind != vecut::MediaKind::Image) item->setHidden(true);
-            items_by_path.insert(entry.path, item);
+            if (entry.kind == vecut::MediaKind::Video) video_items.insert(entry.path, item);
         }
     }
 
-    for (auto* list : lists) {
-        connect(list, &QListWidget::itemChanged, &dialog,
-                [update_selection](QListWidgetItem*) { update_selection(); });
-    }
-    connect(folder_filter, &QComboBox::currentTextChanged, &dialog,
-            [=](const QString& folder) {
+    auto update_selection = [&]() {
+        QMap<QString, bool> selected;
         for (auto* list : lists) {
             for (int i = 0; i < list->count(); ++i) {
                 auto* item = list->item(i);
                 const QString path = item->data(Qt::UserRole).toString();
-                const QString parent = QFileInfo(path).absolutePath();
-                const QString lower = parent.toLower();
-                bool visible = true;
-                if (folder == "Camera") visible = lower.contains("/dcim");
-                else if (folder == "Pictures") visible = lower.contains("picture");
-                else if (folder == "Movies") visible = lower.contains("movie");
-                else if (folder == "Downloads") visible = lower.contains("download");
-                else if (folder == "Music") visible = lower.contains("music") ||
-                                                       lower.contains("recording");
-                item->setHidden(!visible ||
-                    (tabs->currentIndex() == 0 && !path.isEmpty() &&
-                     media_kind_for_file(QFileInfo(path)) != vecut::MediaKind::Video) ||
-                    (tabs->currentIndex() == 1 && !path.isEmpty() &&
-                     media_kind_for_file(QFileInfo(path)) != vecut::MediaKind::Image));
+                if (item->checkState() == Qt::Checked) selected.insert(path, true);
             }
         }
-    });
-    connect(tabs, &QTabWidget::currentChanged, &dialog, [=](int index) {
+        selection_label->setText(QString("%1 selected").arg(selected.size()));
+        next_button->setEnabled(!selected.isEmpty());
+
+        while (QLayoutItem* child = selected_layout->takeAt(0)) {
+            if (child->widget()) child->widget()->deleteLater();
+            delete child;
+        }
+        QStringList names;
+        for (auto it = selected.cbegin(); it != selected.cend(); ++it) {
+            const QString path = it.key();
+            const QString name = QFileInfo(path).fileName();
+            names << name;
+            auto* thumb = new QLabel(selected_strip);
+            thumb->setFixedSize(58, 58);
+            thumb->setAlignment(Qt::AlignCenter);
+            thumb->setStyleSheet("background:#282530;border-radius:6px;");
+            thumb->setToolTip(name);
+            if (thumbnail_cache.contains(path)) {
+                thumb->setPixmap(thumbnail_cache.value(path).scaled(
+                    54, 54, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+            } else {
+                thumb->setPixmap(style()->standardIcon(
+                    media_kind_for_file(QFileInfo(path)) == vecut::MediaKind::Video
+                        ? QStyle::SP_MediaPlay : QStyle::SP_FileIcon)
+                    .pixmap(30, 30));
+            }
+            selected_layout->addWidget(thumb);
+        }
+        selected_layout->addStretch();
+        selected_strip->adjustSize();
+        preview_label->setText(names.isEmpty()
+            ? "Tap media to add it to your selection"
+            : names.mid(0, 3).join("   •   ") +
+              (names.size() > 3 ? QString("   •   +%1 more").arg(names.size() - 3) : ""));
+    };
+
+    for (auto* list : lists) {
+        connect(list, &QListWidget::itemChanged, &dialog,
+                [&, list](QListWidgetItem* changed) {
+            const QString path = changed->data(Qt::UserRole).toString();
+            for (auto* other : lists) {
+                if (other == list) continue;
+                for (int i = 0; i < other->count(); ++i) {
+                    auto* item = other->item(i);
+                    if (item->data(Qt::UserRole).toString() == path &&
+                        item->checkState() != changed->checkState()) {
+                        const QSignalBlocker blocker(other);
+                        item->setCheckState(changed->checkState());
+                        break;
+                    }
+                }
+            }
+            update_selection();
+        });
+    }
+
+    auto apply_filters = [&]() {
         const QString folder = folder_filter->currentText();
+        const int tab_index = tabs->currentIndex();
         for (auto* list : lists) {
             for (int i = 0; i < list->count(); ++i) {
                 auto* item = list->item(i);
                 const QString path = item->data(Qt::UserRole).toString();
                 const QString lower = QFileInfo(path).absolutePath().toLower();
-                bool visible = index == 2 ||
-                    (index == 0 && media_kind_for_file(QFileInfo(path)) == vecut::MediaKind::Video) ||
-                    (index == 1 && media_kind_for_file(QFileInfo(path)) == vecut::MediaKind::Image);
+                const auto kind = media_kind_for_file(QFileInfo(path));
+                bool visible = tab_index == 2 ||
+                    (tab_index == 0 && kind == vecut::MediaKind::Video) ||
+                    (tab_index == 1 && kind == vecut::MediaKind::Image);
                 if (folder == "Camera") visible = visible && lower.contains("/dcim");
                 else if (folder == "Pictures") visible = visible && lower.contains("picture");
                 else if (folder == "Movies") visible = visible && lower.contains("movie");
@@ -1338,7 +1379,78 @@ void MainWindow::show_media_file_picker() {
                 item->setHidden(!visible);
             }
         }
+    };
+    connect(folder_filter, &QComboBox::currentTextChanged, &dialog,
+            [&, apply_filters](const QString&) { apply_filters(); });
+    connect(tabs, &QTabWidget::currentChanged, &dialog,
+            [&, apply_filters](int) { apply_filters(); });
+
+    // Decode video thumbnails one at a time to avoid opening a decoder for every
+    // gallery item. The picker remains usable while thumbnails are being prepared.
+    QStringList video_paths;
+    for (const GalleryEntry& entry : entries)
+        if (entry.kind == vecut::MediaKind::Video) video_paths << entry.path;
+
+    auto* thumbnail_player = new QMediaPlayer(&dialog);
+    auto* thumbnail_sink = new QVideoSink(&dialog);
+    thumbnail_player->setVideoSink(thumbnail_sink);
+    int next_video_index = 0;
+    QString active_video_path;
+    auto start_next_video = std::make_shared<std::function<void()>>();
+    *start_next_video = [&, start_next_video]() {
+        if (next_video_index >= video_paths.size()) return;
+        active_video_path = video_paths.at(next_video_index++);
+        thumbnail_player->stop();
+        thumbnail_player->setSource(QUrl::fromLocalFile(active_video_path));
+        thumbnail_player->play();
+        const QString requested_path = active_video_path;
+        QTimer::singleShot(2200, &dialog, [&, requested_path, start_next_video]() {
+            if (active_video_path != requested_path) return;
+            thumbnail_player->stop();
+            (*start_next_video)();
+        });
+    };
+
+    auto format_duration = [](qint64 milliseconds) {
+        const qint64 seconds = std::max<qint64>(0, milliseconds / 1000);
+        return QString("%1:%2").arg(seconds / 60).arg(seconds % 60, 2, 10, QLatin1Char('0'));
+    };
+    connect(thumbnail_player, &QMediaPlayer::durationChanged, &dialog,
+            [&, format_duration](qint64 duration) {
+        if (active_video_path.isEmpty() || duration <= 0) return;
+        const QString label = format_duration(duration);
+        duration_cache.insert(active_video_path, label);
+        for (auto* list : lists) {
+            for (int i = 0; i < list->count(); ++i) {
+                auto* item = list->item(i);
+                if (item->data(Qt::UserRole).toString() == active_video_path)
+                    item->setText(QFileInfo(active_video_path).fileName() + "\n" + label);
+            }
+        }
     });
+    connect(thumbnail_sink, &QVideoSink::videoFrameChanged, &dialog,
+            [&, start_next_video](const QVideoFrame& frame) {
+        if (active_video_path.isEmpty()) return;
+        const QImage image = frame.toImage();
+        if (image.isNull()) return;
+        const QPixmap pixmap = QPixmap::fromImage(image.scaled(
+            184, 152, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        thumbnail_cache.insert(active_video_path, pixmap);
+        for (auto* list : lists) {
+            for (int i = 0; i < list->count(); ++i) {
+                auto* item = list->item(i);
+                if (item->data(Qt::UserRole).toString() == active_video_path)
+                    item->setIcon(QIcon(pixmap));
+            }
+        }
+        thumbnail_player->stop();
+        const QString completed_path = active_video_path;
+        QTimer::singleShot(0, &dialog, [&, completed_path, start_next_video]() {
+            if (active_video_path == completed_path) (*start_next_video)();
+        });
+    });
+    if (!video_paths.isEmpty())
+        QTimer::singleShot(0, &dialog, [start_next_video]() { (*start_next_video)(); });
 
     connect(cancel_button, &QPushButton::clicked, &dialog, &QDialog::reject);
     connect(next_button, &QPushButton::clicked, &dialog, &QDialog::accept);
@@ -1358,7 +1470,6 @@ void MainWindow::show_media_file_picker() {
         }
     }
     paths.removeDuplicates();
-    if (paths.isEmpty()) return;
 
     int imported = 0;
     for (const QString& path : paths) {
