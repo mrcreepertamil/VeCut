@@ -45,6 +45,7 @@ private:
     void redo_edit();
     void update_history_buttons();
     void import_media();
+    void show_media_file_picker();
     void save_project(bool save_as = false);
     void open_project();
     void add_track(vecut::TrackKind kind);
