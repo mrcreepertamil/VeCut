@@ -928,6 +928,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 
     connect(new_video, &QPushButton::clicked, this, [this] {
         app_stack_->setCurrentWidget(centralWidget()->findChild<QWidget*>("root"));
+        import_media();
     });
     connect(edit_photo, &QPushButton::clicked, this, [this] {
         app_stack_->setCurrentWidget(centralWidget()->findChild<QWidget*>("root"));
