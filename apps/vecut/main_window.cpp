@@ -1199,7 +1199,7 @@ void MainWindow::show_media_file_picker() {
     bottom_row->addWidget(next_button);
     layout->addLayout(bottom_row);
 
-    auto* update_selection = [=]() {
+    auto update_selection = [=]() {
         QStringList selected_names;
         int count = 0;
         for (auto* list : lists) {
