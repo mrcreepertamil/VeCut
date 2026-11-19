@@ -1115,25 +1115,33 @@ void MainWindow::show_media_file_picker() {
         vecut::MediaKind kind;
     };
 
-    QStringList scan_roots;
+    QMap<QString, GalleryEntry> unique_entries;
 #if defined(Q_OS_ANDROID)
-    scan_roots << "/storage/emulated/0/DCIM"
-               << "/storage/emulated/0/Pictures"
-               << "/storage/emulated/0/Movies"
-               << "/storage/emulated/0/Download"
-               << "/storage/emulated/0/Music"
-               << "/storage/emulated/0/Recordings"
-               << "/storage/emulated/0/Android/media";
+    const QJniObject context = QNativeInterface::QAndroidApplication::context();
+    const jobjectArray scanned = QJniObject::callStaticMethod<jobjectArray>(
+        "com/mrcreepertamil/vecut/MediaScanner", "scan",
+        "(Landroid/content/Context;)[Ljava/lang/String;", context.object());
+    if (scanned) {
+        QJniEnvironment env;
+        const jsize count = env->GetArrayLength(scanned);
+        for (jsize i = 0; i < count; ++i) {
+            const auto value = static_cast<jstring>(env->GetObjectArrayElement(scanned, i));
+            const QString path = QJniObject::fromLocalRef(value).toString();
+            const QFileInfo info(path);
+            if (!path.isEmpty() && info.exists() && is_supported_media_file(info))
+                unique_entries.insert(path, GalleryEntry{path, info, media_kind_for_file(info)});
+        }
+        env->DeleteLocalRef(scanned);
+    }
 #else
+    QStringList scan_roots;
     scan_roots << QStandardPaths::writableLocation(QStandardPaths::PicturesLocation)
                << QStandardPaths::writableLocation(QStandardPaths::MoviesLocation)
                << QStandardPaths::writableLocation(QStandardPaths::MusicLocation)
                << QStandardPaths::writableLocation(QStandardPaths::DownloadLocation)
                << QDir::homePath();
-#endif
     scan_roots.removeDuplicates();
 
-    QMap<QString, GalleryEntry> unique_entries;
     for (const QString& root : scan_roots) {
         if (root.isEmpty() || !QDir(root).exists()) continue;
         QDirIterator iterator(root,
@@ -1150,6 +1158,7 @@ void MainWindow::show_media_file_picker() {
                                                          media_kind_for_file(info)});
         }
     }
+#endif
 
     QList<GalleryEntry> entries = unique_entries.values();
     std::sort(entries.begin(), entries.end(),
