@@ -64,8 +64,10 @@
 #include <QWidget>
 #include <QStyle>
 #if defined(Q_OS_ANDROID)
-#include <QtCore/private/qandroidextras_p.h>
 #include <QJniObject>
+#include <QJniEnvironment>
+#include <QCoreApplication>
+#include <QElapsedTimer>
 #endif
 
 #include <algorithm>
@@ -1037,33 +1039,69 @@ void MainWindow::apply_responsive_layout() {
 
 void MainWindow::import_media() {
 #if defined(Q_OS_ANDROID)
-    const jint sdkVersion = QJniObject::getStaticField<jint>(
-        "android/os/Build$VERSION", "SDK_INT");
+    const jint sdkVersion = QNativeInterface::QAndroidApplication::sdkVersion();
     QStringList permissions;
     if (sdkVersion >= 33) {
-        // Android 13+ requires granular permissions for shared media.
         permissions = {
             "android.permission.READ_MEDIA_IMAGES",
             "android.permission.READ_MEDIA_VIDEO",
             "android.permission.READ_MEDIA_AUDIO"
         };
     } else {
-        // Android 8.1 through Android 12L use shared-storage read access.
         permissions = {"android.permission.READ_EXTERNAL_STORAGE"};
     }
 
-    QtAndroidPrivate::requestPermissions(permissions)
-        .then(this, [this](QtAndroidPrivate::PermissionResult result) {
-            if (result == QtAndroidPrivate::Authorized) {
-                show_media_file_picker();
-            } else {
-                status_label_->setText("Media access was not granted.");
-                QMessageBox::information(
-                    this, "Media access needed",
-                    "Allow VeCut to access photos, videos and audio so you can import them into your project. "
-                    "You can change this permission in Android Settings.");
+    QJniObject activity = QNativeInterface::QAndroidApplication::context();
+    if (!activity.isValid()) {
+        status_label_->setText("Could not access Android permission service.");
+        return;
+    }
+
+    QJniEnvironment env;
+    jclass stringClass = env->FindClass("java/lang/String");
+    jobjectArray permissionArray = env->NewObjectArray(
+        permissions.size(), stringClass, nullptr);
+    for (int i = 0; i < permissions.size(); ++i) {
+        const QJniObject permission = QJniObject::fromString(permissions.at(i));
+        env->SetObjectArrayElement(permissionArray, i, permission.object<jstring>());
+    }
+    activity.callMethod<void>("requestPermissions",
+                              "([Ljava/lang/String;I)V",
+                              permissionArray, 7351);
+    env->DeleteLocalRef(permissionArray);
+    env->DeleteLocalRef(stringClass);
+
+    auto* permissionPoll = new QTimer(this);
+    QElapsedTimer wait;
+    wait.start();
+    connect(permissionPoll, &QTimer::timeout, this,
+            [this, permissionPoll, permissions, activity, wait]() mutable {
+        bool granted = true;
+        for (const QString& name : permissions) {
+            const QJniObject permission = QJniObject::fromString(name);
+            const jint result = activity.callMethod<jint>(
+                "checkSelfPermission", "(Ljava/lang/String;)I",
+                permission.object<jstring>());
+            if (result != 0) {
+                granted = false;
+                break;
             }
-        });
+        }
+        if (granted) {
+            permissionPoll->stop();
+            permissionPoll->deleteLater();
+            show_media_file_picker();
+        } else if (wait.elapsed() >= 60000) {
+            permissionPoll->stop();
+            permissionPoll->deleteLater();
+            status_label_->setText("Media access was not granted.");
+            QMessageBox::information(
+                this, "Media access needed",
+                "Allow VeCut to access photos, videos and audio so you can import them. "
+                "You can change this permission in Android Settings.");
+        }
+    });
+    permissionPoll->start(350);
     return;
 #else
     show_media_file_picker();
