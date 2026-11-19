@@ -1262,10 +1262,7 @@ void MainWindow::show_media_file_picker() {
     bottom_row->addWidget(next_button);
     layout->addLayout(bottom_row);
 
-    QMap<QString, QListWidgetItem*> unused_item_index;
     QMap<QString, QPixmap> thumbnail_cache;
-    QMap<QString, QString> duration_cache;
-    QMap<QString, QListWidgetItem*> video_items;
     for (const GalleryEntry& entry : entries) {
         const QString name = entry.info.fileName();
         const QString item_text = entry.kind == vecut::MediaKind::Video
@@ -1291,7 +1288,6 @@ void MainWindow::show_media_file_picker() {
             list->addItem(item);
             if (list == video_list && entry.kind != vecut::MediaKind::Video) item->setHidden(true);
             if (list == photo_list && entry.kind != vecut::MediaKind::Image) item->setHidden(true);
-            if (entry.kind == vecut::MediaKind::Video) video_items.insert(entry.path, item);
         }
     }
 
@@ -1398,18 +1394,18 @@ void MainWindow::show_media_file_picker() {
     thumbnail_player->setVideoSink(thumbnail_sink);
     int next_video_index = 0;
     QString active_video_path;
-    auto start_next_video = std::make_shared<std::function<void()>>();
-    *start_next_video = [&, start_next_video]() {
+    std::function<void()> start_next_video;
+    start_next_video = [&]() {
         if (next_video_index >= video_paths.size()) return;
         active_video_path = video_paths.at(next_video_index++);
         thumbnail_player->stop();
         thumbnail_player->setSource(QUrl::fromLocalFile(active_video_path));
         thumbnail_player->play();
         const QString requested_path = active_video_path;
-        QTimer::singleShot(2200, &dialog, [&, requested_path, start_next_video]() {
+        QTimer::singleShot(2200, &dialog, [&, requested_path]() {
             if (active_video_path != requested_path) return;
             thumbnail_player->stop();
-            (*start_next_video)();
+            start_next_video();
         });
     };
 
@@ -1421,7 +1417,6 @@ void MainWindow::show_media_file_picker() {
             [&, format_duration](qint64 duration) {
         if (active_video_path.isEmpty() || duration <= 0) return;
         const QString label = format_duration(duration);
-        duration_cache.insert(active_video_path, label);
         for (auto* list : lists) {
             for (int i = 0; i < list->count(); ++i) {
                 auto* item = list->item(i);
@@ -1431,7 +1426,7 @@ void MainWindow::show_media_file_picker() {
         }
     });
     connect(thumbnail_sink, &QVideoSink::videoFrameChanged, &dialog,
-            [&, start_next_video](const QVideoFrame& frame) {
+            [&](const QVideoFrame& frame) {
         if (active_video_path.isEmpty()) return;
         const QImage image = frame.toImage();
         if (image.isNull()) return;
@@ -1447,12 +1442,12 @@ void MainWindow::show_media_file_picker() {
         }
         thumbnail_player->stop();
         const QString completed_path = active_video_path;
-        QTimer::singleShot(0, &dialog, [&, completed_path, start_next_video]() {
-            if (active_video_path == completed_path) (*start_next_video)();
+        QTimer::singleShot(0, &dialog, [&, completed_path]() {
+            if (active_video_path == completed_path) start_next_video();
         });
     });
     if (!video_paths.isEmpty())
-        QTimer::singleShot(0, &dialog, [start_next_video]() { (*start_next_video)(); });
+        QTimer::singleShot(0, &dialog, [&]() { start_next_video(); });
 
     connect(cancel_button, &QPushButton::clicked, &dialog, &QDialog::reject);
     connect(next_button, &QPushButton::clicked, &dialog, &QDialog::accept);
