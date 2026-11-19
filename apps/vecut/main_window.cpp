@@ -68,7 +68,6 @@
 #include <QStringList>
 #include <utility>
 #include <functional>
-#include <memory>
 
 
 namespace {
@@ -1034,54 +1033,31 @@ void MainWindow::import_media() {
 #if defined(Q_OS_ANDROID)
     const jint sdkVersion = QJniObject::getStaticField<jint>(
         "android/os/Build$VERSION", "SDK_INT");
+    QStringList permissions;
     if (sdkVersion >= 33) {
-        // Android 13+ uses separate runtime permissions for each media type.
-        auto allGranted = std::make_shared<bool>(true);
-        QtAndroidPrivate::requestPermission(
-            "android.permission.READ_MEDIA_IMAGES")
-            .then(this, [this, allGranted](QtAndroidPrivate::PermissionResult result) {
-                *allGranted = *allGranted &&
-                    result == QtAndroidPrivate::PermissionResult::Granted;
-                return QtAndroidPrivate::requestPermission(
-                    "android.permission.READ_MEDIA_VIDEO");
-            })
-            .unwrap()
-            .then(this, [this, allGranted](QtAndroidPrivate::PermissionResult result) {
-                *allGranted = *allGranted &&
-                    result == QtAndroidPrivate::PermissionResult::Granted;
-                return QtAndroidPrivate::requestPermission(
-                    "android.permission.READ_MEDIA_AUDIO");
-            })
-            .unwrap()
-            .then(this, [this, allGranted](QtAndroidPrivate::PermissionResult result) {
-                *allGranted = *allGranted &&
-                    result == QtAndroidPrivate::PermissionResult::Granted;
-                if (*allGranted) {
-                    show_media_file_picker();
-                } else {
-                    status_label_->setText(
-                        "Media access was not fully granted. Allow photo, video and audio access to import media.");
-                    QMessageBox::information(
-                        this, "Media access needed",
-                        "VeCut needs permission to read your selected media types before importing them. "
-                        "You can change these permissions in Android Settings.");
-                }
-            });
+        // Android 13+ requires granular permissions for shared media.
+        permissions = {
+            "android.permission.READ_MEDIA_IMAGES",
+            "android.permission.READ_MEDIA_VIDEO",
+            "android.permission.READ_MEDIA_AUDIO"
+        };
     } else {
-        // Android 8.1 through Android 12L use the legacy shared-storage permission.
-        QtAndroidPrivate::requestPermission(
-            "android.permission.READ_EXTERNAL_STORAGE")
-            .then(this, [this](QtAndroidPrivate::PermissionResult result) {
-                if (result == QtAndroidPrivate::PermissionResult::Granted) {
-                    show_media_file_picker();
-                } else {
-                    status_label_->setText("Storage access was not granted.");
-                    QMessageBox::information(
-                        this, "Storage access needed",
-                        "Allow storage access so VeCut can read photos, videos and audio for your project.");
-                }
-            });
+        // Android 8.1 through Android 12L use shared-storage read access.
+        permissions = {"android.permission.READ_EXTERNAL_STORAGE"};
     }
+
+    QtAndroidPrivate::requestPermissions(permissions)
+        .then(this, [this](QtAndroidPrivate::PermissionResult result) {
+            if (result == QtAndroidPrivate::Authorized) {
+                show_media_file_picker();
+            } else {
+                status_label_->setText("Media access was not granted.");
+                QMessageBox::information(
+                    this, "Media access needed",
+                    "Allow VeCut to access photos, videos and audio so you can import them into your project. "
+                    "You can change this permission in Android Settings.");
+            }
+        });
     return;
 #else
     show_media_file_picker();
