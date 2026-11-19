@@ -1394,16 +1394,18 @@ void MainWindow::show_media_file_picker() {
     thumbnail_player->setVideoSink(thumbnail_sink);
     int next_video_index = 0;
     QString active_video_path;
+    bool thumbnail_decoded_for_active = false;
     std::function<void()> start_next_video;
     start_next_video = [&]() {
         if (next_video_index >= video_paths.size()) return;
         active_video_path = video_paths.at(next_video_index++);
+        thumbnail_decoded_for_active = false;
         thumbnail_player->stop();
         thumbnail_player->setSource(QUrl::fromLocalFile(active_video_path));
         thumbnail_player->play();
         const QString requested_path = active_video_path;
         QTimer::singleShot(2200, &dialog, [&, requested_path]() {
-            if (active_video_path != requested_path) return;
+            if (active_video_path != requested_path || thumbnail_decoded_for_active) return;
             thumbnail_player->stop();
             start_next_video();
         });
@@ -1427,11 +1429,12 @@ void MainWindow::show_media_file_picker() {
     });
     connect(thumbnail_sink, &QVideoSink::videoFrameChanged, &dialog,
             [&](const QVideoFrame& frame) {
-        if (active_video_path.isEmpty()) return;
+        if (active_video_path.isEmpty() || thumbnail_decoded_for_active) return;
         const QImage image = frame.toImage();
         if (image.isNull()) return;
         const QPixmap pixmap = QPixmap::fromImage(image.scaled(
             184, 152, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        thumbnail_decoded_for_active = true;
         thumbnail_cache.insert(active_video_path, pixmap);
         for (auto* list : lists) {
             for (int i = 0; i < list->count(); ++i) {
