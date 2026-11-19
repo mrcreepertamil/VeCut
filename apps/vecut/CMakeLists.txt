@@ -1,8 +1,4 @@
 find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Multimedia OpenGLWidgets)
-if(ANDROID)
-    find_package(Qt6 6.5 REQUIRED COMPONENTS CorePrivate)
-endif()
-
 qt_standard_project_setup()
 
 qt_add_executable(VeCut
@@ -24,9 +20,6 @@ qt_add_executable(VeCut
 )
 
 target_link_libraries(VeCut PRIVATE Qt6::Widgets Qt6::Multimedia Qt6::OpenGLWidgets vecut_core)
-if(ANDROID)
-    target_link_libraries(VeCut PRIVATE Qt6::CorePrivate)
-endif()
 target_compile_features(VeCut PRIVATE cxx_std_17)
 
 if(ANDROID)
