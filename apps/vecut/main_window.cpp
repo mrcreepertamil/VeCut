@@ -614,7 +614,6 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     redo_button_->setEnabled(false);
     auto* import_button = new QPushButton("Import media", root);
     import_button->setIcon(vecut_icon(VeCutIcon::Import));
-    import_button->setIcon(vecut_icon(VeCutIcon::Open));
     import_button->setObjectName("primaryButton");
     import_button->setMinimumHeight(42);
     toolbar->addWidget(open_button);
@@ -975,7 +974,6 @@ Import media to begin", preview_panel);
     start_cards->setSpacing(12);
     auto* new_video = new QPushButton("New video", home_content);
     new_video->setIcon(vecut_icon(VeCutIcon::Video));
-    new_video->setIcon(vecut_icon(VeCutIcon::Play));
     new_video->setIconSize(QSize(38, 38));
     new_video->setObjectName("homePrimary");
     new_video->setMinimumHeight(132);
