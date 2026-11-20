@@ -50,8 +50,6 @@ jobs:
       - name: Keep Android SDK platform compatible with Qt 6.5
         run: |
           set -euxo pipefail
-          # GitHub runners may include newer preview/extension platforms that
-          # the Android resource linker bundled with this Qt toolchain cannot read.
           find "$ANDROID_HOME/platforms" -mindepth 1 -maxdepth 1 -type d ! -name 'android-33' -exec rm -rf {} +
           test -f "$ANDROID_HOME/platforms/android-33/android.jar"
 
@@ -62,7 +60,7 @@ jobs:
           host: linux
           target: android
           arch: android_arm64_v8a
-          modules: qtmultimedia,qtsvg
+          modules: qtmultimedia qtsvg
           cache: true
 
       - name: Configure C++ Android build
@@ -98,7 +96,6 @@ jobs:
             echo "No APK was produced by the Android build."
             exit 1
           fi
-          # Align and sign the APK so Android package installer accepts it.
           BUILD_TOOLS="$ANDROID_SDK_ROOT/build-tools/33.0.2"
           UNSIGNED_APK="$RUNNER_TEMP/VeCut-unsigned.apk"
           ALIGNED_APK="$RUNNER_TEMP/VeCut-aligned.apk"
