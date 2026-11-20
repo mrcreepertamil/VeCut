@@ -113,6 +113,141 @@ QLabel* make_section_title(const QString& text, QWidget* parent) {
     return label;
 }
 
+
+enum class VeCutIcon {
+    Open, Save, Undo, Redo, Import, Play, Split, Trim, Transition, Volume,
+    Delete, Search, Help, Settings, Video, Photo, Export
+};
+
+QPixmap build_ve_cut_icon_atlas() {
+    constexpr int tile = 48;
+    constexpr int columns = 4;
+    constexpr int count = 17;
+    constexpr int rows = (count + columns - 1) / columns;
+    QPixmap atlas(columns * tile, rows * tile * 3);
+    atlas.fill(Qt::transparent);
+
+    const auto draw_glyph = [](QPainter& p, int id, const QColor& color) {
+        p.save();
+        p.setRenderHint(QPainter::Antialiasing, true);
+        QPen pen(color, 3.2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+        p.setPen(pen);
+        p.setBrush(Qt::NoBrush);
+        const QRectF r(12, 12, 24, 24);
+        switch (id) {
+        case 0: // open folder
+            p.drawLine(12, 19, 21, 19); p.drawLine(21, 19, 24, 22);
+            p.drawRoundedRect(QRectF(11, 18, 27, 19), 3, 3);
+            break;
+        case 1: // save
+            p.drawRoundedRect(QRectF(12, 10, 24, 28), 3, 3);
+            p.drawLine(18, 11, 18, 20); p.drawLine(30, 11, 30, 20);
+            p.drawRoundedRect(QRectF(18, 27, 12, 8), 1, 1);
+            break;
+        case 2: // undo
+            p.drawArc(QRectF(15, 15, 23, 22), 35 * 16, 270 * 16);
+            p.drawLine(14, 17, 23, 17); p.drawLine(14, 17, 14, 26);
+            break;
+        case 3: // redo
+            p.drawArc(QRectF(10, 15, 23, 22), -125 * 16, 270 * 16);
+            p.drawLine(34, 17, 25, 17); p.drawLine(34, 17, 34, 26);
+            break;
+        case 4: // import/download
+        case 16: // export
+            p.drawLine(24, 9, 24, 28); p.drawLine(16, 21, 24, 29);
+            p.drawLine(24, 29, 32, 21); p.drawLine(11, 34, 11, 39);
+            p.drawLine(11, 39, 37, 39); p.drawLine(37, 39, 37, 34);
+            break;
+        case 5: // play
+            p.setBrush(color);
+            p.drawPolygon(QPolygonF{QPointF(16, 10), QPointF(36, 24), QPointF(16, 38)});
+            break;
+        case 6: // split
+            p.drawLine(24, 9, 24, 39); p.drawLine(10, 15, 19, 24);
+            p.drawLine(19, 24, 10, 33); p.drawLine(38, 15, 29, 24);
+            p.drawLine(29, 24, 38, 33);
+            break;
+        case 7: // trim/scissors
+            p.drawEllipse(QRectF(10, 10, 10, 10)); p.drawEllipse(QRectF(10, 28, 10, 10));
+            p.drawLine(19, 18, 37, 34); p.drawLine(19, 30, 37, 14);
+            break;
+        case 8: // transition
+            p.drawLine(10, 24, 38, 24); p.drawLine(10, 24, 18, 16);
+            p.drawLine(10, 24, 18, 32); p.drawLine(38, 24, 30, 16);
+            p.drawLine(38, 24, 30, 32);
+            break;
+        case 9: // volume
+            p.setBrush(color);
+            p.drawPolygon(QPolygonF{QPointF(10, 20), QPointF(17, 20), QPointF(26, 13),
+                                   QPointF(26, 35), QPointF(17, 28), QPointF(10, 28)});
+            p.setBrush(Qt::NoBrush);
+            p.drawArc(QRectF(21, 13, 19, 22), -60 * 16, 120 * 16);
+            break;
+        case 10: // delete
+            p.drawRoundedRect(QRectF(14, 16, 20, 22), 2, 2);
+            p.drawLine(11, 13, 37, 13); p.drawLine(20, 10, 28, 10);
+            p.drawLine(20, 21, 20, 33); p.drawLine(28, 21, 28, 33);
+            break;
+        case 11: // search
+            p.drawEllipse(QRectF(10, 9, 21, 21)); p.drawLine(27, 27, 39, 39);
+            break;
+        case 12: // help
+            p.drawEllipse(QRectF(10, 10, 28, 28)); p.drawText(QRectF(10, 9, 28, 29), Qt::AlignCenter, "?");
+            break;
+        case 13: // settings
+            p.drawEllipse(QRectF(17, 17, 14, 14));
+            for (int a = 0; a < 8; ++a) {
+                const qreal angle = a * 3.14159265358979323846 / 4.0;
+                const QPointF inner(24 + std::cos(angle) * 10, 24 + std::sin(angle) * 10);
+                const QPointF outer(24 + std::cos(angle) * 15, 24 + std::sin(angle) * 15);
+                p.drawLine(inner, outer);
+            }
+            break;
+        case 14: // video
+            p.drawRoundedRect(QRectF(9, 13, 30, 23), 4, 4);
+            p.setBrush(color);
+            p.drawPolygon(QPolygonF{QPointF(20, 18), QPointF(20, 31), QPointF(30, 24)});
+            break;
+        case 15: // photo
+            p.drawRoundedRect(QRectF(9, 12, 30, 24), 3, 3);
+            p.drawEllipse(QRectF(27, 16, 5, 5));
+            p.drawLine(12, 33, 21, 23); p.drawLine(21, 23, 28, 30);
+            break;
+        }
+        p.restore();
+    };
+
+    for (int id = 0; id < count; ++id) {
+        const int col = id % columns;
+        const int row = id / columns;
+        for (int state = 0; state < 3; ++state) {
+            const QColor color = state == 0 ? QColor("#A6A4AE")
+                : (state == 1 ? QColor("#39D353") : QColor("#168A36"));
+            QPainter p(&atlas);
+            p.translate(col * tile, (row * 3 + state) * tile);
+            draw_glyph(p, id, color);
+        }
+    }
+    return atlas;
+}
+
+QIcon vecut_icon(VeCutIcon icon_id) {
+    static const QPixmap atlas = build_ve_cut_icon_atlas();
+    constexpr int tile = 48;
+    constexpr int columns = 4;
+    const int id = static_cast<int>(icon_id);
+    const int col = id % columns;
+    const int row = id / columns;
+    QIcon icon;
+    icon.addPixmap(atlas.copy(col * tile, row * 3 * tile, tile, tile),
+                   QIcon::Normal, QIcon::Off);
+    icon.addPixmap(atlas.copy(col * tile, (row * 3 + 1) * tile, tile, tile),
+                   QIcon::Active, QIcon::Off);
+    icon.addPixmap(atlas.copy(col * tile, (row * 3 + 2) * tile, tile, tile),
+                   QIcon::Selected, QIcon::Off);
+    return icon;
+}
+
 QFrame* make_panel(QWidget* parent) {
     auto* frame = new QFrame(parent);
     frame->setObjectName("panel");
@@ -468,17 +603,17 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     toolbar->addStretch();
 
     auto* open_button = new QPushButton("Open project", root);
-    open_button->setIcon(style()->standardIcon(QStyle::SP_DialogOpenButton));
+    open_button->setIcon(vecut_icon(VeCutIcon::Open));
     auto* save_button = new QPushButton("Save project", root);
-    save_button->setIcon(style()->standardIcon(QStyle::SP_DialogSaveButton));
+    save_button->setIcon(vecut_icon(VeCutIcon::Save));
     undo_button_ = new QPushButton("Undo", root);
-    undo_button_->setIcon(style()->standardIcon(QStyle::SP_ArrowBack));
+    undo_button_->setIcon(vecut_icon(VeCutIcon::Undo));
     redo_button_ = new QPushButton("Redo", root);
-    redo_button_->setIcon(style()->standardIcon(QStyle::SP_ArrowForward));
+    redo_button_->setIcon(vecut_icon(VeCutIcon::Redo));
     undo_button_->setEnabled(false);
     redo_button_->setEnabled(false);
-    auto* import_button = new QPushButton("Import media", root);
-    import_button->setIcon(style()->standardIcon(QStyle::SP_DialogOpenButton));
+    auto* import_button = new QPushButton("Import media", root);\n    import_button->setIcon(vecut_icon(VeCutIcon::Import));
+    import_button->setIcon(vecut_icon(VeCutIcon::Open));
     import_button->setObjectName("primaryButton");
     import_button->setMinimumHeight(42);
     toolbar->addWidget(open_button);
@@ -531,7 +666,7 @@ Import media to begin", preview_panel);
 
     auto* preview_controls = new QHBoxLayout();
     preview_play_button_ = new QPushButton("Play", preview_panel);
-    preview_play_button_->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
+    preview_play_button_->setIcon(vecut_icon(VeCutIcon::Play));
     preview_play_button_->setMinimumHeight(36);
     preview_seek_ = new QSlider(Qt::Horizontal, preview_panel);
     preview_seek_->setRange(0, 0);
@@ -663,15 +798,15 @@ Import media to begin", preview_panel);
     timeline_toolbar->addWidget(make_section_title("TIMELINE", timeline_panel_));
     timeline_toolbar->addStretch();
     split_button_ = new QPushButton("Split", timeline_panel_);
-    split_button_->setIcon(style()->standardIcon(QStyle::SP_ArrowRight));
+    split_button_->setIcon(vecut_icon(VeCutIcon::Split));
     trim_button_ = new QPushButton("Trim", timeline_panel_);
-    trim_button_->setIcon(style()->standardIcon(QStyle::SP_TitleBarShadeButton));
+    trim_button_->setIcon(vecut_icon(VeCutIcon::Trim));
     transition_button_ = new QPushButton("Transition", timeline_panel_);
-    transition_button_->setIcon(style()->standardIcon(QStyle::SP_BrowserReload));
+    transition_button_->setIcon(vecut_icon(VeCutIcon::Transition));
     volume_button_ = new QPushButton("Volume", timeline_panel_);
-    volume_button_->setIcon(style()->standardIcon(QStyle::SP_MediaVolume));
+    volume_button_->setIcon(vecut_icon(VeCutIcon::Volume));
     remove_clip_button_ = new QPushButton("Remove clip", timeline_panel_);
-    remove_clip_button_->setIcon(style()->standardIcon(QStyle::SP_TrashIcon));
+    remove_clip_button_->setIcon(vecut_icon(VeCutIcon::Delete));
     add_video_button_ = new QPushButton("+ Video track", timeline_panel_);
     add_audio_button_ = new QPushButton("+ Audio track", timeline_panel_);
     add_video_button_->setMinimumHeight(40);
@@ -815,9 +950,9 @@ Import media to begin", preview_panel);
     auto* search_button = new QPushButton(home_page_);
     auto* help_button = new QPushButton(home_page_);
     auto* settings_button = new QPushButton(home_page_);
-    search_button->setIcon(style()->standardIcon(QStyle::SP_FileDialogContentsView));
-    help_button->setIcon(style()->standardIcon(QStyle::SP_DialogHelpButton));
-    settings_button->setIcon(style()->standardIcon(QStyle::SP_FileDialogDetailedView));
+    search_button->setIcon(vecut_icon(VeCutIcon::Search));
+    help_button->setIcon(vecut_icon(VeCutIcon::Help));
+    settings_button->setIcon(vecut_icon(VeCutIcon::Settings));
     for (auto* button : {search_button, help_button, settings_button}) {
         button->setFixedSize(42, 42);
         button->setIconSize(QSize(23, 23));
@@ -837,14 +972,14 @@ Import media to begin", preview_panel);
 
     auto* start_cards = new QHBoxLayout();
     start_cards->setSpacing(12);
-    auto* new_video = new QPushButton("New video", home_content);
-    new_video->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
+    auto* new_video = new QPushButton("New video", home_content);\n    new_video->setIcon(vecut_icon(VeCutIcon::Video));
+    new_video->setIcon(vecut_icon(VeCutIcon::Play));
     new_video->setIconSize(QSize(38, 38));
     new_video->setObjectName("homePrimary");
     new_video->setMinimumHeight(132);
     new_video->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     auto* edit_photo = new QPushButton("Edit photo", home_content);
-    edit_photo->setIcon(style()->standardIcon(QStyle::SP_FileDialogListView));
+    edit_photo->setIcon(vecut_icon(VeCutIcon::Photo));
     edit_photo->setIconSize(QSize(34, 34));
     edit_photo->setObjectName("homePrimary");
     edit_photo->setMinimumHeight(132);
@@ -895,7 +1030,7 @@ Import media to begin", preview_panel);
     projects_header->addWidget(projects_title);
     projects_header->addStretch();
     auto* project_sort = new QPushButton(home_content);
-    project_sort->setIcon(style()->standardIcon(QStyle::SP_FileDialogDetailedView));
+    project_sort->setIcon(vecut_icon(VeCutIcon::Settings));
     project_sort->setIconSize(QSize(22, 22));
     project_sort->setStyleSheet("QPushButton{background:transparent;border:0;padding:6px;}");
     projects_header->addWidget(project_sort);
