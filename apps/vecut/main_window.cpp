@@ -193,9 +193,9 @@ protected:
     void paintEvent(QPaintEvent*) override {
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
-        painter.fillRect(rect(), QColor("#101219"));
+        painter.fillRect(rect(), QColor("#100E16"));
 
-        painter.fillRect(QRect(0, 0, width(), kRulerHeight), QColor("#1c202a"));
+        painter.fillRect(QRect(0, 0, width(), kRulerHeight), QColor("#1B1922"));
         painter.setPen(QColor("#8992a4"));
         painter.setFont(QFont("Sans Serif", 9, QFont::DemiBold));
         painter.drawText(QRect(10, 0, kTrackLabelWidth - 18, kRulerHeight),
@@ -204,7 +204,7 @@ protected:
         const int tick_step = static_cast<int>(5 * kPixelsPerSecond);
         for (int x = kTrackLabelWidth, seconds = 0; x < width();
              x += tick_step, seconds += 5) {
-            painter.setPen(QColor("#394150"));
+            painter.setPen(QColor("#393742"));
             painter.drawLine(x, kRulerHeight - 5, x, height());
             painter.setPen(QColor("#aab2c0"));
             painter.drawText(QRect(x + 5, 2, tick_step - 8, kRulerHeight - 4),
@@ -224,7 +224,7 @@ protected:
             const auto& track = project_->tracks()[row];
             const int y = kRulerHeight + static_cast<int>(row) * kTrackRowHeight;
             painter.fillRect(QRect(0, y, width(), kTrackRowHeight - 2),
-                             row % 2 == 0 ? QColor("#171b24") : QColor("#141821"));
+                             row % 2 == 0 ? QColor("#1B1922") : QColor("#15131B"));
             painter.setPen(QColor("#e1e5ee"));
             painter.setFont(QFont("Sans Serif", 9, QFont::DemiBold));
             painter.drawText(QRect(10, y + 4, kTrackLabelWidth - 18, 25),
@@ -235,7 +235,7 @@ protected:
             painter.drawText(QRect(10, y + 29, kTrackLabelWidth - 18, 20),
                              Qt::AlignVCenter,
                              track.kind == vecut::TrackKind::Audio ? "AUDIO" : "VIDEO");
-            painter.setPen(QColor("#303746"));
+            painter.setPen(QColor("#393742"));
             painter.drawLine(kTrackLabelWidth, y, width(), y);
 
             for (const auto& clip : track.clips) {
@@ -251,11 +251,11 @@ protected:
                     clip_duration * kPixelsPerSecond / 1000.0));
                 const QRect clip_rect(x, y + 12, w, 44);
                 QColor fill = media->kind == vecut::MediaKind::Audio
-                    ? QColor("#315b83")
+                    ? QColor("#168A36")
                     : (media->kind == vecut::MediaKind::Image
-                        ? QColor("#76549a") : QColor("#28734f"));
+                        ? QColor("#39D353") : QColor("#168A36"));
                 painter.setPen(selected_clip_id_ == QString::fromStdString(clip.id)
-                    ? QPen(QColor("#ffffff"), 2) : QPen(fill.lighter(135), 1));
+                    ? QPen(QColor("#39D353"), 2) : QPen(fill.lighter(135), 1));
                 painter.setBrush(fill);
                 painter.drawRoundedRect(clip_rect, 5, 5);
                 painter.setPen(QColor("#ffffff"));
@@ -467,13 +467,13 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     toolbar->addWidget(brand);
     toolbar->addStretch();
 
-    auto* open_button = new QPushButton("Open project", root);
-    auto* save_button = new QPushButton("Save project", root);
-    undo_button_ = new QPushButton("Undo", root);
-    redo_button_ = new QPushButton("Redo", root);
+    auto* open_button = new QPushButton("Open project", root);\n    open_button->setIcon(style()->standardIcon(QStyle::SP_DialogOpenButton));
+    auto* save_button = new QPushButton("Save project", root);\n    save_button->setIcon(style()->standardIcon(QStyle::SP_DialogSaveButton));
+    undo_button_ = new QPushButton("Undo", root);\n    undo_button_->setIcon(style()->standardIcon(QStyle::SP_ArrowBack));
+    redo_button_ = new QPushButton("Redo", root);\n    redo_button_->setIcon(style()->standardIcon(QStyle::SP_ArrowForward));
     undo_button_->setEnabled(false);
     redo_button_->setEnabled(false);
-    auto* import_button = new QPushButton("Import media", root);
+    auto* import_button = new QPushButton("Import media", root);\n    import_button->setIcon(style()->standardIcon(QStyle::SP_DialogOpenButton));
     import_button->setObjectName("primaryButton");
     import_button->setMinimumHeight(42);
     toolbar->addWidget(open_button);
@@ -523,7 +523,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     preview_layout->addWidget(preview_stack_, 1);
 
     auto* preview_controls = new QHBoxLayout();
-    preview_play_button_ = new QPushButton("Play", preview_panel);
+    preview_play_button_ = new QPushButton("Play", preview_panel);\n    preview_play_button_->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
     preview_play_button_->setMinimumHeight(36);
     preview_seek_ = new QSlider(Qt::Horizontal, preview_panel);
     preview_seek_->setRange(0, 0);
@@ -653,11 +653,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     timeline_toolbar->setSpacing(6);
     timeline_toolbar->addWidget(make_section_title("TIMELINE", timeline_panel_));
     timeline_toolbar->addStretch();
-    split_button_ = new QPushButton("Split", timeline_panel_);
-    trim_button_ = new QPushButton("Trim", timeline_panel_);
-    transition_button_ = new QPushButton("Transition", timeline_panel_);
-    volume_button_ = new QPushButton("Volume", timeline_panel_);
-    remove_clip_button_ = new QPushButton("Remove clip", timeline_panel_);
+    split_button_ = new QPushButton("Split", timeline_panel_);\n    split_button_->setIcon(style()->standardIcon(QStyle::SP_ArrowRight));
+    trim_button_ = new QPushButton("Trim", timeline_panel_);\n    trim_button_->setIcon(style()->standardIcon(QStyle::SP_TitleBarShadeButton));
+    transition_button_ = new QPushButton("Transition", timeline_panel_);\n    transition_button_->setIcon(style()->standardIcon(QStyle::SP_BrowserReload));
+    volume_button_ = new QPushButton("Volume", timeline_panel_);\n    volume_button_->setIcon(style()->standardIcon(QStyle::SP_MediaVolume));
+    remove_clip_button_ = new QPushButton("Remove clip", timeline_panel_);\n    remove_clip_button_->setIcon(style()->standardIcon(QStyle::SP_TrashIcon));
     add_video_button_ = new QPushButton("+ Video track", timeline_panel_);
     add_audio_button_ = new QPushButton("+ Audio track", timeline_panel_);
     add_video_button_->setMinimumHeight(40);
@@ -771,17 +771,18 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
             [this] { remove_selected_clip(); });
 
     setStyleSheet(
-        "QMainWindow,#root{background:#0f1015;}"
-        "QFrame#panel{background:#191b23;border:1px solid #303440;border-radius:12px;}"
-        "QListWidget{background:#11131a;border:1px solid #303440;border-radius:8px;"
+        "QMainWindow,#root{background:#100e16;}"
+        "QFrame#panel{background:#1b1922;border:1px solid #393742;border-radius:14px;}"
+        "QListWidget{background:#15131b;border:1px solid #393742;border-radius:10px;"
         "color:#e4e7ef;padding:6px;}"
         "QListWidget::item{padding:8px;border-radius:5px;}"
-        "QListWidget::item:selected{background:#263b31;color:#ffffff;}"
-        "QPushButton{background:#292d38;color:#e9ebf2;border:1px solid #3a4050;"
-        "border-radius:7px;padding:8px 10px;font-weight:600;}"
-        "QPushButton:hover{background:#343a48;}"
-        "QPushButton#primaryButton{background:#16834a;border-color:#16834a;color:white;}"
-        "QPushButton#primaryButton:hover{background:#1b9958;}"
+        "QListWidget::item:selected{background:#168a36;color:#ffffff;}"
+        "QPushButton{background:#25232d;color:#f4f5fa;border:1px solid #393742;"
+        "border-radius:10px;padding:9px 12px;font-weight:650;}"
+        "QPushButton:hover{background:#30303a;border-color:#39d353;}"
+        "QPushButton:pressed{background:#168a36;border-color:#39d353;color:#ffffff;}"
+        "QPushButton#primaryButton{background:#39d353;border-color:#39d353;color:#101010;}"
+        "QPushButton#primaryButton:hover{background:#55e66c;border-color:#55e66c;}"
     );
     // The mobile-first home screen is the app's landing page. The existing
     // editor remains intact as the second page in the stack.
@@ -806,7 +807,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     for (auto* button : {search_button, help_button, settings_button}) {
         button->setFixedSize(42, 42);
         button->setIconSize(QSize(23, 23));
-        button->setStyleSheet("QPushButton{background:#191d24;border:1px solid #303843;border-radius:12px;padding:0;} QPushButton:pressed{background:#263b31;}");
+        button->setStyleSheet("QPushButton{background:#191d24;border:1px solid #303843;border-radius:12px;padding:0;} QPushButton:hover{border-color:#39d353;} QPushButton:pressed{background:#168a36;border-color:#39d353;color:#ffffff;}");
         home_header->addWidget(button);
     }
     home_layout->addLayout(home_header);
@@ -860,7 +861,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
         tile_button->setIcon(style()->standardIcon(tool_icons[i]));
         tile_button->setIconSize(QSize(30, 30));
         tile_button->setMinimumHeight(66);
-        tile_button->setStyleSheet("QPushButton{background:#191f1d;border:1px solid #2c4637;border-radius:13px;color:#39d353;} QPushButton:pressed{background:#263b31;}");
+        tile_button->setStyleSheet("QPushButton{background:#191f1d;border:1px solid #2c4637;border-radius:13px;color:#39d353;} QPushButton:hover{border-color:#39d353;} QPushButton:pressed{background:#168a36;border-color:#39d353;color:#ffffff;}");
         auto* tile_label = new QLabel(tool_names[i], tile);
         tile_label->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
         tile_label->setWordWrap(true);
@@ -933,7 +934,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     home_page_->setStyleSheet(
         "QWidget#homePage{background:#100e16;color:#f4f5fa;}"
         "QPushButton#homePrimary{background:#18251d;border:1px solid #39d353;border-radius:17px;color:#f4f5fa;font-size:18px;font-weight:800;padding:12px;text-align:left;}"
-        "QPushButton#homePrimary:pressed{background:#263b31;}"
+        "QPushButton#homePrimary:hover{background:#203629;border-color:#55e66c;}"
+        "QPushButton#homePrimary:pressed{background:#168a36;color:#ffffff;}"
     );
     app_stack_->addWidget(home_page_);
     app_stack_->addWidget(root);
