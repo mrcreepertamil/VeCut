@@ -64,6 +64,7 @@
 #include <QVBoxLayout>
 #include <QWidget>
 #include <QStyle>
+#include <QSvgRenderer>
 #if defined(Q_OS_ANDROID)
 #include <QJniObject>
 #include <QJniEnvironment>
@@ -119,132 +120,67 @@ enum class VeCutIcon {
     Delete, Search, Help, Settings, Video, Photo, Export
 };
 
-QPixmap build_ve_cut_icon_atlas() {
-    constexpr int tile = 48;
-    constexpr int columns = 4;
-    constexpr int count = 17;
-    constexpr int rows = (count + columns - 1) / columns;
-    QPixmap atlas(columns * tile, rows * tile * 3);
-    atlas.fill(Qt::transparent);
-
-    const auto draw_glyph = [](QPainter& p, int id, const QColor& color) {
-        p.save();
-        p.setRenderHint(QPainter::Antialiasing, true);
-        QPen pen(color, 3.2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
-        p.setPen(pen);
-        p.setBrush(Qt::NoBrush);
-        const QRectF r(12, 12, 24, 24);
-        switch (id) {
-        case 0: // open folder
-            p.drawLine(12, 19, 21, 19); p.drawLine(21, 19, 24, 22);
-            p.drawRoundedRect(QRectF(11, 18, 27, 19), 3, 3);
-            break;
-        case 1: // save
-            p.drawRoundedRect(QRectF(12, 10, 24, 28), 3, 3);
-            p.drawLine(18, 11, 18, 20); p.drawLine(30, 11, 30, 20);
-            p.drawRoundedRect(QRectF(18, 27, 12, 8), 1, 1);
-            break;
-        case 2: // undo
-            p.drawArc(QRectF(15, 15, 23, 22), 35 * 16, 270 * 16);
-            p.drawLine(14, 17, 23, 17); p.drawLine(14, 17, 14, 26);
-            break;
-        case 3: // redo
-            p.drawArc(QRectF(10, 15, 23, 22), -125 * 16, 270 * 16);
-            p.drawLine(34, 17, 25, 17); p.drawLine(34, 17, 34, 26);
-            break;
-        case 4: // import/download
-        case 16: // export
-            p.drawLine(24, 9, 24, 28); p.drawLine(16, 21, 24, 29);
-            p.drawLine(24, 29, 32, 21); p.drawLine(11, 34, 11, 39);
-            p.drawLine(11, 39, 37, 39); p.drawLine(37, 39, 37, 34);
-            break;
-        case 5: // play
-            p.setBrush(color);
-            p.drawPolygon(QPolygonF{QPointF(16, 10), QPointF(36, 24), QPointF(16, 38)});
-            break;
-        case 6: // split
-            p.drawLine(24, 9, 24, 39); p.drawLine(10, 15, 19, 24);
-            p.drawLine(19, 24, 10, 33); p.drawLine(38, 15, 29, 24);
-            p.drawLine(29, 24, 38, 33);
-            break;
-        case 7: // trim/scissors
-            p.drawEllipse(QRectF(10, 10, 10, 10)); p.drawEllipse(QRectF(10, 28, 10, 10));
-            p.drawLine(19, 18, 37, 34); p.drawLine(19, 30, 37, 14);
-            break;
-        case 8: // transition
-            p.drawLine(10, 24, 38, 24); p.drawLine(10, 24, 18, 16);
-            p.drawLine(10, 24, 18, 32); p.drawLine(38, 24, 30, 16);
-            p.drawLine(38, 24, 30, 32);
-            break;
-        case 9: // volume
-            p.setBrush(color);
-            p.drawPolygon(QPolygonF{QPointF(10, 20), QPointF(17, 20), QPointF(26, 13),
-                                   QPointF(26, 35), QPointF(17, 28), QPointF(10, 28)});
-            p.setBrush(Qt::NoBrush);
-            p.drawArc(QRectF(21, 13, 19, 22), -60 * 16, 120 * 16);
-            break;
-        case 10: // delete
-            p.drawRoundedRect(QRectF(14, 16, 20, 22), 2, 2);
-            p.drawLine(11, 13, 37, 13); p.drawLine(20, 10, 28, 10);
-            p.drawLine(20, 21, 20, 33); p.drawLine(28, 21, 28, 33);
-            break;
-        case 11: // search
-            p.drawEllipse(QRectF(10, 9, 21, 21)); p.drawLine(27, 27, 39, 39);
-            break;
-        case 12: // help
-            p.drawEllipse(QRectF(10, 10, 28, 28)); p.drawText(QRectF(10, 9, 28, 29), Qt::AlignCenter, "?");
-            break;
-        case 13: // settings
-            p.drawEllipse(QRectF(17, 17, 14, 14));
-            for (int a = 0; a < 8; ++a) {
-                const qreal angle = a * 3.14159265358979323846 / 4.0;
-                const QPointF inner(24 + std::cos(angle) * 10, 24 + std::sin(angle) * 10);
-                const QPointF outer(24 + std::cos(angle) * 15, 24 + std::sin(angle) * 15);
-                p.drawLine(inner, outer);
-            }
-            break;
-        case 14: // video
-            p.drawRoundedRect(QRectF(9, 13, 30, 23), 4, 4);
-            p.setBrush(color);
-            p.drawPolygon(QPolygonF{QPointF(20, 18), QPointF(20, 31), QPointF(30, 24)});
-            break;
-        case 15: // photo
-            p.drawRoundedRect(QRectF(9, 12, 30, 24), 3, 3);
-            p.drawEllipse(QRectF(27, 16, 5, 5));
-            p.drawLine(12, 33, 21, 23); p.drawLine(21, 23, 28, 30);
-            break;
-        }
-        p.restore();
-    };
-
-    for (int id = 0; id < count; ++id) {
-        const int col = id % columns;
-        const int row = id / columns;
-        for (int state = 0; state < 3; ++state) {
-            const QColor color = state == 0 ? QColor("#A6A4AE")
-                : (state == 1 ? QColor("#39D353") : QColor("#168A36"));
-            QPainter p(&atlas);
-            p.translate(col * tile, (row * 3 + state) * tile);
-            draw_glyph(p, id, color);
-        }
+// Lucide icons are MIT-licensed SVG artwork. Render them at runtime so Qt can
+// scale them cleanly on Android and desktop without bitmap sprite assets.
+QString lucide_svg_body(VeCutIcon icon) {
+    switch (icon) {
+    case VeCutIcon::Open:
+        return "<path d='M3 10a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/><path d='M3 10h18'/>";
+    case VeCutIcon::Save:
+        return "<path d='M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z'/><path d='M17 21v-8H7v8'/><path d='M7 3v5h8'/>";
+    case VeCutIcon::Undo:
+        return "<path d='M3 7v6h6'/><path d='M21 17a9 9 0 0 0-15-6.7L3 13'/>";
+    case VeCutIcon::Redo:
+        return "<path d='M21 7v6h-6'/><path d='M3 17a9 9 0 0 1 15-6.7L21 13'/>";
+    case VeCutIcon::Import:
+        return "<path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/><path d='m7 10 5 5 5-5'/><path d='M12 15V3'/>";
+    case VeCutIcon::Play:
+        return "<polygon points='6 3 20 12 6 21 6 3'/>";
+    case VeCutIcon::Split:
+    case VeCutIcon::Trim:
+        return "<circle cx='6' cy='6' r='3'/><circle cx='6' cy='18' r='3'/><path d='m8.1 8.1 12.8 12.8'/><path d='m14 6 7-7'/><path d='m8.1 15.9 5.9-5.9'/>";
+    case VeCutIcon::Transition:
+        return "<path d='M17 2 21 6 17 10'/><path d='M3 12V10a4 4 0 0 1 4-4h14'/><path d='m7 22-4-4 4-4'/><path d='M21 12v2a4 4 0 0 1-4 4H3'/>";
+    case VeCutIcon::Volume:
+        return "<polygon points='11 5 6 9 2 9 2 15 6 15 11 19 11 5'/><path d='M15.5 8.5a5 5 0 0 1 0 7'/><path d='M19 5a10 10 0 0 1 0 14'/>";
+    case VeCutIcon::Delete:
+        return "<path d='M3 6h18'/><path d='M8 6V4h8v2'/><path d='m19 6-1 14H6L5 6'/><path d='M10 11v5'/><path d='M14 11v5'/>";
+    case VeCutIcon::Search:
+        return "<circle cx='11' cy='11' r='8'/><path d='m21 21-4.35-4.35'/>";
+    case VeCutIcon::Help:
+        return "<circle cx='12' cy='12' r='10'/><path d='M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3'/><path d='M12 17h.01'/>";
+    case VeCutIcon::Settings:
+        return "<path d='M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z'/><path d='m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.6a8 8 0 0 1-1.5.9l-.3 1.8h-2.8l-.3-1.8a8 8 0 0 1-1.5-.9l-1.7.6-1.4-2.4 1.4-1.1a8 8 0 0 1 0-1.8l-1.4-1.1 1.4-2.4 1.7.6a8 8 0 0 1 1.5-.9l.3-1.8h2.8l.3 1.8a8 8 0 0 1 1.5.9l1.7-.6 1.4 2.4-1.4 1.1a8 8 0 0 1 0 1.8Z'/>";
+    case VeCutIcon::Video:
+        return "<rect x='3' y='5' width='13' height='14' rx='2'/><path d='m16 10 5-3v10l-5-3'/>";
+    case VeCutIcon::Photo:
+        return "<rect x='3' y='3' width='18' height='18' rx='2'/><circle cx='8.5' cy='8.5' r='1.5'/><path d='m21 15-5-5L5 21'/>";
+    case VeCutIcon::Export:
+        return "<path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/><path d='m17 8-5-5-5 5'/><path d='M12 3v12'/>";
     }
-    return atlas;
+    return {};
 }
 
 QIcon vecut_icon(VeCutIcon icon_id) {
-    static const QPixmap atlas = build_ve_cut_icon_atlas();
-    constexpr int tile = 48;
-    constexpr int columns = 4;
-    const int id = static_cast<int>(icon_id);
-    const int col = id % columns;
-    const int row = id / columns;
+    const auto render_state = [icon_id](const QColor& color) {
+        const QByteArray svg = QString(
+            "<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 24 24'>"
+            "<g fill='none' stroke='%1' stroke-width='2' stroke-linecap='round' "
+            "stroke-linejoin='round'>%2</g></svg>")
+            .arg(color.name(), lucide_svg_body(icon_id)).toUtf8();
+        QSvgRenderer renderer(svg);
+        QPixmap pixmap(48, 48);
+        pixmap.fill(Qt::transparent);
+        QPainter painter(&pixmap);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        renderer.render(&painter);
+        return pixmap;
+    };
+
     QIcon icon;
-    icon.addPixmap(atlas.copy(col * tile, row * 3 * tile, tile, tile),
-                   QIcon::Normal, QIcon::Off);
-    icon.addPixmap(atlas.copy(col * tile, (row * 3 + 1) * tile, tile, tile),
-                   QIcon::Active, QIcon::Off);
-    icon.addPixmap(atlas.copy(col * tile, (row * 3 + 2) * tile, tile, tile),
-                   QIcon::Selected, QIcon::Off);
+    icon.addPixmap(render_state(QColor("#A6A4AE")), QIcon::Normal, QIcon::Off);
+    icon.addPixmap(render_state(QColor("#39D353")), QIcon::Active, QIcon::Off);
+    icon.addPixmap(render_state(QColor("#168A36")), QIcon::Selected, QIcon::Off);
     return icon;
 }
 
