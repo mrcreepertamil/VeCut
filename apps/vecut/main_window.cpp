@@ -467,13 +467,18 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     toolbar->addWidget(brand);
     toolbar->addStretch();
 
-    auto* open_button = new QPushButton("Open project", root);\n    open_button->setIcon(style()->standardIcon(QStyle::SP_DialogOpenButton));
-    auto* save_button = new QPushButton("Save project", root);\n    save_button->setIcon(style()->standardIcon(QStyle::SP_DialogSaveButton));
-    undo_button_ = new QPushButton("Undo", root);\n    undo_button_->setIcon(style()->standardIcon(QStyle::SP_ArrowBack));
-    redo_button_ = new QPushButton("Redo", root);\n    redo_button_->setIcon(style()->standardIcon(QStyle::SP_ArrowForward));
+    auto* open_button = new QPushButton("Open project", root);
+    open_button->setIcon(style()->standardIcon(QStyle::SP_DialogOpenButton));
+    auto* save_button = new QPushButton("Save project", root);
+    save_button->setIcon(style()->standardIcon(QStyle::SP_DialogSaveButton));
+    undo_button_ = new QPushButton("Undo", root);
+    undo_button_->setIcon(style()->standardIcon(QStyle::SP_ArrowBack));
+    redo_button_ = new QPushButton("Redo", root);
+    redo_button_->setIcon(style()->standardIcon(QStyle::SP_ArrowForward));
     undo_button_->setEnabled(false);
     redo_button_->setEnabled(false);
-    auto* import_button = new QPushButton("Import media", root);\n    import_button->setIcon(style()->standardIcon(QStyle::SP_DialogOpenButton));
+    auto* import_button = new QPushButton("Import media", root);
+    import_button->setIcon(style()->standardIcon(QStyle::SP_DialogOpenButton));
     import_button->setObjectName("primaryButton");
     import_button->setMinimumHeight(42);
     toolbar->addWidget(open_button);
@@ -510,7 +515,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     preview_layout->setContentsMargins(10, 10, 10, 10);
     preview_layout->setSpacing(8);
     preview_layout->addWidget(make_section_title("PREVIEW", preview_panel));
-    preview_label_ = new QLabel("Your preview will appear here\n\nImport media to begin", preview_panel);
+    preview_label_ = new QLabel("Your preview will appear here
+
+Import media to begin", preview_panel);
     preview_label_->setAlignment(Qt::AlignCenter);
     preview_label_->setMinimumSize(0, 0);
     preview_label_->setWordWrap(true);
@@ -523,7 +530,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     preview_layout->addWidget(preview_stack_, 1);
 
     auto* preview_controls = new QHBoxLayout();
-    preview_play_button_ = new QPushButton("Play", preview_panel);\n    preview_play_button_->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
+    preview_play_button_ = new QPushButton("Play", preview_panel);
+    preview_play_button_->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
     preview_play_button_->setMinimumHeight(36);
     preview_seek_ = new QSlider(Qt::Horizontal, preview_panel);
     preview_seek_->setRange(0, 0);
@@ -625,7 +633,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
             if (player != preview_player_) return;
             current_preview_frame_ = QImage();
             preview_label_->setPixmap(QPixmap());
-            preview_label_->setText(QString("Preview could not play this file\\n%1").arg(error));
+            preview_label_->setText(QString("Preview could not play this file\
+%1").arg(error));
             preview_stack_->setCurrentWidget(preview_label_);
             status_label_->setText("Preview playback error.");
         });
@@ -653,11 +662,16 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     timeline_toolbar->setSpacing(6);
     timeline_toolbar->addWidget(make_section_title("TIMELINE", timeline_panel_));
     timeline_toolbar->addStretch();
-    split_button_ = new QPushButton("Split", timeline_panel_);\n    split_button_->setIcon(style()->standardIcon(QStyle::SP_ArrowRight));
-    trim_button_ = new QPushButton("Trim", timeline_panel_);\n    trim_button_->setIcon(style()->standardIcon(QStyle::SP_TitleBarShadeButton));
-    transition_button_ = new QPushButton("Transition", timeline_panel_);\n    transition_button_->setIcon(style()->standardIcon(QStyle::SP_BrowserReload));
-    volume_button_ = new QPushButton("Volume", timeline_panel_);\n    volume_button_->setIcon(style()->standardIcon(QStyle::SP_MediaVolume));
-    remove_clip_button_ = new QPushButton("Remove clip", timeline_panel_);\n    remove_clip_button_->setIcon(style()->standardIcon(QStyle::SP_TrashIcon));
+    split_button_ = new QPushButton("Split", timeline_panel_);
+    split_button_->setIcon(style()->standardIcon(QStyle::SP_ArrowRight));
+    trim_button_ = new QPushButton("Trim", timeline_panel_);
+    trim_button_->setIcon(style()->standardIcon(QStyle::SP_TitleBarShadeButton));
+    transition_button_ = new QPushButton("Transition", timeline_panel_);
+    transition_button_->setIcon(style()->standardIcon(QStyle::SP_BrowserReload));
+    volume_button_ = new QPushButton("Volume", timeline_panel_);
+    volume_button_->setIcon(style()->standardIcon(QStyle::SP_MediaVolume));
+    remove_clip_button_ = new QPushButton("Remove clip", timeline_panel_);
+    remove_clip_button_->setIcon(style()->standardIcon(QStyle::SP_TrashIcon));
     add_video_button_ = new QPushButton("+ Video track", timeline_panel_);
     add_audio_button_ = new QPushButton("+ Audio track", timeline_panel_);
     add_video_button_->setMinimumHeight(40);
@@ -894,7 +908,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     auto* empty_icon = new QLabel(empty_projects);
     empty_icon->setPixmap(style()->standardIcon(QStyle::SP_FileDialogNewFolder).pixmap(56, 56));
     empty_icon->setAlignment(Qt::AlignCenter);
-    auto* empty_text = new QLabel("Your projects will appear here.\nStart creating now.", empty_projects);
+    auto* empty_text = new QLabel("Your projects will appear here.
+Start creating now.", empty_projects);
     empty_text->setAlignment(Qt::AlignCenter);
     empty_text->setWordWrap(true);
     empty_text->setStyleSheet("font-size:15px;color:#929b98;");
@@ -925,7 +940,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
         bottom_nav->addWidget(nav_button);
         if (i != 0) {
             connect(nav_button, &QPushButton::clicked, this, [this, name = nav_names[i]] {
-                QMessageBox::information(this, name.section('\n', 1), "This section is coming soon.");
+                QMessageBox::information(this, name.section('
+', 1), "This section is coming soon.");
             });
         }
     }
@@ -1268,8 +1284,11 @@ void MainWindow::show_media_file_picker() {
     for (const GalleryEntry& entry : entries) {
         const QString name = entry.info.fileName();
         const QString item_text = entry.kind == vecut::MediaKind::Video
-            ? name + "\nVIDEO" : (entry.kind == vecut::MediaKind::Image
-                ? name + "\nPHOTO" : name + "\nAUDIO");
+            ? name + "
+VIDEO" : (entry.kind == vecut::MediaKind::Image
+                ? name + "
+PHOTO" : name + "
+AUDIO");
         for (auto* list : lists) {
             auto* item = new QListWidgetItem(item_text);
             item->setData(Qt::UserRole, entry.path);
@@ -1425,7 +1444,8 @@ void MainWindow::show_media_file_picker() {
             for (int i = 0; i < list->count(); ++i) {
                 auto* item = list->item(i);
                 if (item->data(Qt::UserRole).toString() == active_video_path)
-                    item->setText(QFileInfo(active_video_path).fileName() + "\n" + label);
+                    item->setText(QFileInfo(active_video_path).fileName() + "
+" + label);
             }
         }
     });
@@ -1543,7 +1563,9 @@ void MainWindow::update_media_details(bool reload_preview) {
         media_details_->setText("No media selected");
         current_preview_frame_ = QImage();
         preview_label_->setPixmap(QPixmap());
-        preview_label_->setText("Your preview will appear here\n\nImport media to begin");
+        preview_label_->setText("Your preview will appear here
+
+Import media to begin");
         return;
     }
 
@@ -1563,7 +1585,11 @@ void MainWindow::update_media_details(bool reload_preview) {
         : QString("Dimensions unavailable");
     const double size_mb = static_cast<double>(found->file_size_bytes) / (1024.0 * 1024.0);
     media_details_->setText(
-        QString("%1\n%2\nDuration: %3\nSize: %4 MB\nDimensions: %5")
+        QString("%1
+%2
+Duration: %3
+Size: %4 MB
+Dimensions: %5")
             .arg(QString::fromStdString(found->display_name), media_kind_name(found->kind),
                  duration, QString::number(size_mb, 'f', 2), dimensions));
     if (reload_preview) load_preview_media(id);
@@ -1595,7 +1621,9 @@ void MainWindow::load_preview_media(const QString& media_id) {
     } else if (found->kind == vecut::MediaKind::Audio) {
         current_preview_frame_ = QImage();
         preview_label_->setPixmap(QPixmap());
-        preview_label_->setText(QString("AUDIO PREVIEW\n\n%1")
+        preview_label_->setText(QString("AUDIO PREVIEW
+
+%1")
             .arg(QString::fromStdString(found->display_name)));
         preview_stack_->setCurrentWidget(preview_label_);
         preview_player_->setSource(QUrl::fromLocalFile(
