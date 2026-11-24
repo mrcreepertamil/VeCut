@@ -187,6 +187,26 @@ bool Project::move_clip_to_time(const std::string& track_id, const std::string& 
     return true;
 }
 
+bool Project::move_clip_to_track(const std::string& source_track_id,
+                                 const std::string& clip_id,
+                                 const std::string& target_track_id) {
+    if (source_track_id == target_track_id) return find_track(source_track_id) != nullptr;
+    Track* source = find_track(source_track_id);
+    Track* target = find_track(target_track_id);
+    if (!source || !target) return false;
+    const auto it = std::find_if(source->clips.begin(), source->clips.end(),
+        [&](const Clip& item) { return item.id == clip_id; });
+    if (it == source->clips.end()) return false;
+    const MediaAsset* asset = find_media(it->media_id);
+    if (!asset) return false;
+    const bool target_is_audio = target->kind == TrackKind::Audio;
+    if ((target_is_audio && asset->kind != MediaKind::Audio) ||
+        (!target_is_audio && asset->kind == MediaKind::Audio)) return false;
+    target->clips.push_back(std::move(*it));
+    source->clips.erase(it);
+    return true;
+}
+
 bool Project::move_clip(const std::string& track_id, const std::string& clip_id,
                         std::size_t target_index) {
     Track* track = find_track(track_id);
