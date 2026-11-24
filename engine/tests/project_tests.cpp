@@ -104,6 +104,16 @@ int main() {
     assert(!project.move_clip_to_time("video-1", "missing", 0));
     assert(!project.move_clip_to_time("video-1", "clip-1", -1));
 
+    Track second_video_track;
+    second_video_track.id = "video-2";
+    second_video_track.kind = TrackKind::Video;
+    assert(project.add_track(second_video_track));
+    assert(project.move_clip_to_track("video-1", "clip-2", "video-2"));
+    assert(project.tracks()[1].clips.size() == 1);
+    assert(project.tracks()[1].clips.front().id == "clip-2");
+    assert(!project.move_clip_to_track("video-1", "clip-2", "video-2"));
+    assert(!project.move_clip_to_track("video-1", "clip-1", "missing-track"));
+
     std::string error;
     assert(project.validate(&error));
     assert(error.empty());
