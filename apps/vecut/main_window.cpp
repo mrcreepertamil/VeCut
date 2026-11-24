@@ -2,6 +2,7 @@
 #include "media_probe.h"
 #include "gpu_preview_widget.h"
 #include "preview_shader_library.h"
+#include "timeline_exporter.h"
 
 #include <QFileDialog>
 #include <QDir>
@@ -449,7 +450,16 @@ protected:
             on_clip_edit_started();
             drag_history_saved_ = true;
         }
-        on_clip_edited(drag_track_id_, drag_clip_id_, start, source_in, source_out);
+        QString target_track_id = drag_track_id_;
+        if (drag_mode_ == DragMode::Move) {
+            const int target_row = track_index_at(event->position().toPoint().y());
+            if (target_row >= 0)
+                target_track_id = QString::fromStdString(
+                    project_->tracks()[static_cast<std::size_t>(target_row)].id);
+        }
+        if (on_clip_edited(drag_track_id_, target_track_id, drag_clip_id_,
+                           start, source_in, source_out))
+            drag_track_id_ = target_track_id;
         refresh();
     }
 
@@ -557,6 +567,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     toolbar->addWidget(undo_button_);
     toolbar->addWidget(redo_button_);
     toolbar->addWidget(import_button);
+    export_button_ = new QPushButton("Export MP4", root);
+    export_button_->setIcon(vecut_icon(VeCutIcon::Export));
+    toolbar->addWidget(export_button_);
     outer->addLayout(toolbar);
 
     workspace_ = new QSplitter(Qt::Horizontal, root);
@@ -752,7 +765,9 @@ Import media to begin", preview_panel);
     timeline_toolbar->addWidget(transition_button_);
     timeline_toolbar->addWidget(volume_button_);
     timeline_audio_button_ = new QPushButton("Play timeline audio", timeline_panel_);
+    timeline_preview_button_ = new QPushButton("Preview timeline", timeline_panel_);
     timeline_toolbar->addWidget(timeline_audio_button_);
+    timeline_toolbar->addWidget(timeline_preview_button_);
     timeline_toolbar->addWidget(remove_clip_button_);
     timeline_toolbar->addWidget(add_video_button_);
     timeline_toolbar->addWidget(add_audio_button_);
@@ -802,14 +817,21 @@ Import media to begin", preview_panel);
         };
     timeline_widget_->on_clip_edit_started = [this] { push_undo_state(); };
     timeline_widget_->on_clip_edited =
-        [this](const QString& track_id, const QString& clip_id, std::int64_t start_ms,
+        [this](const QString& track_id, const QString& target_track_id,
+               const QString& clip_id, std::int64_t start_ms,
                std::int64_t source_in_ms, std::int64_t source_out_ms) {
-            const auto track = track_id.toStdString();
+            const auto source = track_id.toStdString();
+            const auto target = target_track_id.toStdString();
             const auto clip = clip_id.toStdString();
-            if (project_.trim_clip(track, clip, source_in_ms, source_out_ms) &&
-                project_.move_clip_to_time(track, clip, start_ms)) {
-                timeline_widget_->refresh();
-            }
+            const bool transferred = source == target ||
+                project_.move_clip_to_track(source, clip, target);
+            if (!transferred) return false;
+            if (!project_.trim_clip(target, clip, source_in_ms, source_out_ms) ||
+                !project_.move_clip_to_time(target, clip, start_ms))
+                return false;
+            selected_track_id_ = target_track_id;
+            timeline_widget_->refresh();
+            return true;
         };
     timeline_scroll->setWidget(timeline_widget_);
     timeline_scroll->setMinimumHeight(110);
@@ -826,6 +848,8 @@ Import media to begin", preview_panel);
     connect(open_button, &QPushButton::clicked, this, [this] { open_project(); });
     connect(save_button, &QPushButton::clicked, this, [this] { save_project(); });
     connect(import_button, &QPushButton::clicked, this, [this] { import_media(); });
+    connect(export_button_, &QPushButton::clicked, this, [this] { render_timeline(false); });
+    connect(timeline_preview_button_, &QPushButton::clicked, this, [this] { render_timeline(true); });
     connect(undo_button_, &QPushButton::clicked, this, [this] { undo_edit(); });
     connect(redo_button_, &QPushButton::clicked, this, [this] { redo_edit(); });
     auto* undo_shortcut = new QShortcut(QKeySequence::Undo, this);
@@ -2592,6 +2616,56 @@ void MainWindow::remove_selected_clip() {
     timeline_widget_->selectClip({});
     timeline_widget_->refresh();
     status_label_->setText("Clip removed from the timeline. Source media remains in the media bin.");
+}
+
+
+void MainWindow::render_timeline(bool preview_only) {
+    const QString ffmpeg = QStandardPaths::findExecutable("ffmpeg");
+    if (ffmpeg.isEmpty()) {
+        QMessageBox::warning(this, "FFmpeg required",
+            "VeCut needs FFmpeg installed and available on PATH to preview or export a full timeline.");
+        return;
+    }
+
+    QString output;
+    if (preview_only) {
+        const QString temp_dir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+        if (temp_dir.isEmpty()) {
+            status_label_->setText("Could not locate a temporary folder for timeline preview.");
+            return;
+        }
+        output = QDir(temp_dir).filePath("vecut-timeline-preview.mp4");
+    } else {
+        output = QFileDialog::getSaveFileName(this, "Export VeCut timeline",
+            QDir::home().filePath("VeCut-export.mp4"), "MP4 video (*.mp4)");
+        if (output.isEmpty()) return;
+        if (!output.endsWith(".mp4", Qt::CaseInsensitive)) output += ".mp4";
+    }
+
+    status_label_->setText(preview_only ? "Rendering timeline preview…" : "Exporting MP4…");
+    QString error;
+    if (!TimelineExporter::render(project_, ffmpeg, output, &error)) {
+        status_label_->setText("Timeline render failed.");
+        QMessageBox::warning(this, "Timeline render failed", error);
+        return;
+    }
+
+    if (preview_only) {
+        if (preview_effect_timer_) preview_effect_timer_->stop();
+        selected_track_id_.clear();
+        selected_clip_id_.clear();
+        video_preview_->clear();
+        audio_preview_->clear();
+        preview_player_ = video_preview_->player();
+        video_preview_->set_source(QUrl::fromLocalFile(output));
+        preview_stack_->setCurrentWidget(gpu_preview_);
+        preview_player_->play();
+        status_label_->setText("Playing rendered multi-clip timeline preview.");
+    } else {
+        status_label_->setText(QString("MP4 exported: %1").arg(output));
+        QMessageBox::information(this, "Export complete",
+            QString("Your MP4 has been rendered to:\n%1").arg(output));
+    }
 }
 
 void MainWindow::update_track_list() {
