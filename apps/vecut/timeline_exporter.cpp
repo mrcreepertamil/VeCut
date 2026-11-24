@@ -2,6 +2,7 @@
 
 #include <QFileInfo>
 #include <QProcess>
+#include <QStringList>
 
 #include <algorithm>
 
