@@ -88,6 +88,8 @@ public:
                    std::size_t target_index);
     bool move_clip_to_time(const std::string& track_id, const std::string& clip_id,
                            std::int64_t timeline_start_ms);
+    bool move_clip_to_track(const std::string& source_track_id, const std::string& clip_id,
+                            const std::string& target_track_id);
 
     std::int64_t duration_ms() const noexcept;
     bool validate(std::string* error = nullptr) const;
