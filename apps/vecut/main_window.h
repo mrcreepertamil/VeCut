@@ -54,6 +54,7 @@ private:
     void probe_media(const QString& media_id, const QString& path, vecut::MediaKind kind);
     void refresh_media_item(const QString& media_id);
     void update_track_list();
+    void render_timeline(bool preview_only);
     void split_selected_clip();
     void trim_selected_clip();
     void edit_selected_transition();
@@ -96,6 +97,8 @@ private:
     QPushButton* transition_button_ = nullptr;
     QPushButton* volume_button_ = nullptr;
     QPushButton* timeline_audio_button_ = nullptr;
+    QPushButton* export_button_ = nullptr;
+    QPushButton* timeline_preview_button_ = nullptr;
     struct AudioMixChannel {
         QMediaPlayer* player = nullptr;
         QAudioOutput* output = nullptr;
