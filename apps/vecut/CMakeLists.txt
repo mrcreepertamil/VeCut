@@ -13,6 +13,8 @@ qt_add_executable(VeCut
     audio_preview.h
     preview_compositor.cpp
     preview_compositor.h
+    timeline_exporter.cpp
+    timeline_exporter.h
     preview_shader_library.cpp
     preview_shader_library.h
     gpu_preview_widget.cpp
