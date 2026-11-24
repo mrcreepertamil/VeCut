@@ -247,7 +247,7 @@ public:
     }
 
     std::function<void(const QString&, const QString&, std::int64_t)> on_media_dropped;
-    std::function<void(const QString&, const QString&, std::int64_t,
+    std::function<bool(const QString&, const QString&, const QString&, std::int64_t,
                        std::int64_t, std::int64_t)> on_clip_edited;
     std::function<void(const QString&, const QString&)> on_clip_selected;
     std::function<void()> on_clip_edit_started;
