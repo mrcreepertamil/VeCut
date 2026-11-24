@@ -190,13 +190,16 @@ bool Project::move_clip_to_time(const std::string& track_id, const std::string& 
 bool Project::move_clip_to_track(const std::string& source_track_id,
                                  const std::string& clip_id,
                                  const std::string& target_track_id) {
-    if (source_track_id == target_track_id) return find_track(source_track_id) != nullptr;
+    if (source_track_id == target_track_id) {
+        Track* same_track = find_track(source_track_id);
+        return same_track && find_clip(*same_track, clip_id);
+    }
     Track* source = find_track(source_track_id);
     Track* target = find_track(target_track_id);
     if (!source || !target) return false;
     const auto it = std::find_if(source->clips.begin(), source->clips.end(),
         [&](const Clip& item) { return item.id == clip_id; });
-    if (it == source->clips.end()) return false;
+    if (it == source->clips.end() || find_clip(*target, clip_id)) return false;
     const MediaAsset* asset = find_media(it->media_id);
     if (!asset) return false;
     const bool target_is_audio = target->kind == TrackKind::Audio;
