@@ -29,7 +29,8 @@ jobs:
           host: windows
           target: desktop
           arch: win64_msvc2022_64
-          archives: qtmultimedia qtsvg
+          modules: qtmultimedia
+          archives: qtbase qtsvg
           cache: true
 
       - name: Configure C++17 Qt application
