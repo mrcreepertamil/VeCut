@@ -116,8 +116,10 @@ QLabel* make_section_title(const QString& text, QWidget* parent) {
 
 
 enum class VeCutIcon {
-    Open, Save, Undo, Redo, Import, Play, Split, Trim, Transition, Volume,
-    Delete, Search, Help, Settings, Video, Photo, Export
+    Open, Save, Undo, Redo, Import, Play, Pause, Split, Trim, Transition, Volume,
+    Delete, Search, Help, Settings, Video, Photo, Export, AddVideo, AddAudio,
+    AutoCut, Retouch, Story, Desktop, Captions, Sparkles, RemoveBackground,
+    Grid, FolderPlus, Sort, Edit, Template, Inbox, User
 };
 
 // Lucide icons are MIT-licensed SVG artwork. Render them at runtime so Qt can
@@ -136,6 +138,40 @@ QString lucide_svg_body(VeCutIcon icon) {
         return "<path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/><path d='m7 10 5 5 5-5'/><path d='M12 15V3'/>";
     case VeCutIcon::Play:
         return "<polygon points='6 3 20 12 6 21 6 3'/>";
+    case VeCutIcon::Pause:
+        return "<rect x='6' y='4' width='4' height='16' rx='1'/><rect x='14' y='4' width='4' height='16' rx='1'/>";
+    case VeCutIcon::AddVideo:
+        return "<rect x='3' y='5' width='13' height='14' rx='2'/><path d='m16 10 5-3v10l-5-3'/><path d='M9.5 9v6M6.5 12h6'/>";
+    case VeCutIcon::AddAudio:
+        return "<path d='M9 18V5l12-2v13'/><circle cx='6' cy='18' r='3'/><circle cx='18' cy='16' r='3'/><path d='M9 9l12-2'/>";
+    case VeCutIcon::AutoCut:
+        return "<path d='m4 4 16 16M20 4 4 20'/><circle cx='12' cy='12' r='3'/><path d='M12 2v4M12 18v4M2 12h4M18 12h4'/>";
+    case VeCutIcon::Retouch:
+        return "<path d='m12 3 1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2L12 3Z'/><path d='m19 14 .9 2.1L22 17l-2.1.9L19 20l-.9-2.1L16 17l2.1-.9L19 14Z'/>";
+    case VeCutIcon::Story:
+        return "<path d='M4 4h16v16H4z'/><path d='M8 8h8M8 12h8M8 16h5'/>";
+    case VeCutIcon::Desktop:
+        return "<rect x='3' y='4' width='18' height='13' rx='2'/><path d='M8 21h8M12 17v4'/>";
+    case VeCutIcon::Captions:
+        return "<rect x='3' y='5' width='18' height='14' rx='2'/><path d='M7 10h4M7 14h3M14 10h3M14 14h3'/>";
+    case VeCutIcon::Sparkles:
+        return "<path d='m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z'/><path d='m19 14 .9 2.1L22 17l-2.1.9L19 20l-.9-2.1L16 17l2.1-.9L19 14Z'/>";
+    case VeCutIcon::RemoveBackground:
+        return "<rect x='3' y='3' width='18' height='18' rx='2'/><path d='m3 15 5-5 4 4 3-3 6 6'/><path d='M3 3l18 18'/>";
+    case VeCutIcon::Grid:
+        return "<rect x='3' y='3' width='7' height='7' rx='1'/><rect x='14' y='3' width='7' height='7' rx='1'/><rect x='3' y='14' width='7' height='7' rx='1'/><rect x='14' y='14' width='7' height='7' rx='1'/>";
+    case VeCutIcon::FolderPlus:
+        return "<path d='M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/><path d='M12 11v6M9 14h6'/>";
+    case VeCutIcon::Sort:
+        return "<path d='M4 6h16M7 12h10M10 18h4'/>";
+    case VeCutIcon::Edit:
+        return "<path d='m16 4 4 4L9 19l-5 1 1-5L16 4Z'/><path d='m14 6 4 4'/>";
+    case VeCutIcon::Template:
+        return "<rect x='3' y='3' width='18' height='18' rx='2'/><path d='M3 9h18M9 21V9'/>";
+    case VeCutIcon::Inbox:
+        return "<path d='M4 4h16l2 11v4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-4L4 4Z'/><path d='M2 15h6l2 3h4l2-3h6'/>";
+    case VeCutIcon::User:
+        return "<circle cx='12' cy='8' r='4'/><path d='M4 21a8 8 0 0 1 16 0'/>";
     case VeCutIcon::Split:
     case VeCutIcon::Trim:
         return "<circle cx='6' cy='6' r='3'/><circle cx='6' cy='18' r='3'/><path d='m8.1 8.1 12.8 12.8'/><path d='m14 6 7-7'/><path d='m8.1 15.9 5.9-5.9'/>";
@@ -645,6 +681,7 @@ Import media to begin", preview_panel);
         if (track == project_.tracks().end()) {
             preview_effect_timer_->stop();
             preview_play_button_->setText("Play");
+            preview_play_button_->setIcon(vecut_icon(VeCutIcon::Play));
             return;
         }
         const auto clip = std::find_if(track->clips.begin(), track->clips.end(),
@@ -654,6 +691,7 @@ Import media to begin", preview_panel);
         if (clip == track->clips.end()) {
             preview_effect_timer_->stop();
             preview_play_button_->setText("Play");
+            preview_play_button_->setIcon(vecut_icon(VeCutIcon::Play));
             return;
         }
         preview_effect_time_ms_ = std::min<std::int64_t>(
@@ -663,6 +701,7 @@ Import media to begin", preview_panel);
         if (preview_effect_time_ms_ >= clip->source_out_ms - clip->source_in_ms) {
             preview_effect_timer_->stop();
             preview_play_button_->setText("Play");
+            preview_play_button_->setIcon(vecut_icon(VeCutIcon::Play));
         }
     });
     connect(preview_play_button_, &QPushButton::clicked, this, [this] {
@@ -678,15 +717,19 @@ Import media to begin", preview_panel);
         if (preview_effect_timer_->isActive()) {
             preview_effect_timer_->stop();
             preview_play_button_->setText("Play");
+            preview_play_button_->setIcon(vecut_icon(VeCutIcon::Play));
         } else {
             preview_effect_timer_->start();
             preview_play_button_->setText("Pause");
+            preview_play_button_->setIcon(vecut_icon(VeCutIcon::Pause));
         }
     });
     const auto connect_preview_player = [this](QMediaPlayer* player) {
         connect(player, &QMediaPlayer::playbackStateChanged, this,
                 [this](QMediaPlayer::PlaybackState state) {
-            preview_play_button_->setText(state == QMediaPlayer::PlayingState ? "Pause" : "Play");
+            const bool playing = state == QMediaPlayer::PlayingState;
+            preview_play_button_->setText(playing ? "Pause" : "Play");
+            preview_play_button_->setIcon(vecut_icon(playing ? VeCutIcon::Pause : VeCutIcon::Play));
         });
         connect(player, &QMediaPlayer::durationChanged, this,
                 [this, player](qint64 duration) {
@@ -743,8 +786,12 @@ Import media to begin", preview_panel);
     volume_button_->setIcon(vecut_icon(VeCutIcon::Volume));
     remove_clip_button_ = new QPushButton("Remove clip", timeline_panel_);
     remove_clip_button_->setIcon(vecut_icon(VeCutIcon::Delete));
-    add_video_button_ = new QPushButton("+ Video track", timeline_panel_);
-    add_audio_button_ = new QPushButton("+ Audio track", timeline_panel_);
+    add_video_button_ = new QPushButton("Video track", timeline_panel_);
+    add_video_button_->setIcon(vecut_icon(VeCutIcon::AddVideo));
+    add_audio_button_ = new QPushButton("Audio track", timeline_panel_);
+    add_audio_button_->setIcon(vecut_icon(VeCutIcon::AddAudio));
+    add_video_button_->setToolTip("Add a video track");
+    add_audio_button_->setToolTip("Add an audio track");
     add_video_button_->setMinimumHeight(40);
     add_audio_button_->setMinimumHeight(40);
     timeline_toolbar->addWidget(split_button_);
@@ -752,6 +799,8 @@ Import media to begin", preview_panel);
     timeline_toolbar->addWidget(transition_button_);
     timeline_toolbar->addWidget(volume_button_);
     timeline_audio_button_ = new QPushButton("Play timeline audio", timeline_panel_);
+    timeline_audio_button_->setIcon(vecut_icon(VeCutIcon::Play));
+    timeline_audio_button_->setToolTip("Play or stop the timeline audio mix");
     timeline_toolbar->addWidget(timeline_audio_button_);
     timeline_toolbar->addWidget(remove_clip_button_);
     timeline_toolbar->addWidget(add_video_button_);
@@ -931,11 +980,9 @@ Import media to begin", preview_panel);
         "AutoCut", "Retouch", "AI story maker", "Desktop editor",
         "Auto captions", "AI generator", "Remove background", "All tools"
     };
-    const QList<QStyle::StandardPixmap> tool_icons = {
-        QStyle::SP_MediaPlay, QStyle::SP_DialogApplyButton,
-        QStyle::SP_FileDialogContentsView, QStyle::SP_ComputerIcon,
-        QStyle::SP_FileDialogDetailedView, QStyle::SP_DesktopIcon,
-        QStyle::SP_DirIcon, QStyle::SP_DialogOpenButton
+    const QList<VeCutIcon> tool_icons = {
+        VeCutIcon::AutoCut, VeCutIcon::Retouch, VeCutIcon::Story, VeCutIcon::Desktop,
+        VeCutIcon::Captions, VeCutIcon::Sparkles, VeCutIcon::RemoveBackground, VeCutIcon::Grid
     };
     for (int i = 0; i < tool_names.size(); ++i) {
         auto* tile = new QWidget(home_content);
@@ -943,7 +990,7 @@ Import media to begin", preview_panel);
         tile_layout->setContentsMargins(0, 0, 0, 0);
         tile_layout->setSpacing(5);
         auto* tile_button = new QPushButton(tile);
-        tile_button->setIcon(style()->standardIcon(tool_icons[i]));
+        tile_button->setIcon(vecut_icon(tool_icons[i]));
         tile_button->setIconSize(QSize(30, 30));
         tile_button->setMinimumHeight(66);
         tile_button->setStyleSheet("QPushButton{background:#191f1d;border:1px solid #2c4637;border-radius:13px;color:#39d353;} QPushButton:hover{border-color:#39d353;} QPushButton:pressed{background:#168a36;border-color:#39d353;color:#ffffff;}");
@@ -966,7 +1013,8 @@ Import media to begin", preview_panel);
     projects_header->addWidget(projects_title);
     projects_header->addStretch();
     auto* project_sort = new QPushButton(home_content);
-    project_sort->setIcon(vecut_icon(VeCutIcon::Settings));
+    project_sort->setIcon(vecut_icon(VeCutIcon::Sort));
+    project_sort->setToolTip("Sort projects");
     project_sort->setIconSize(QSize(22, 22));
     project_sort->setStyleSheet("QPushButton{background:transparent;border:0;padding:6px;}");
     projects_header->addWidget(project_sort);
@@ -977,7 +1025,7 @@ Import media to begin", preview_panel);
     empty_layout->setContentsMargins(0, 28, 0, 30);
     empty_layout->setSpacing(10);
     auto* empty_icon = new QLabel(empty_projects);
-    empty_icon->setPixmap(style()->standardIcon(QStyle::SP_FileDialogNewFolder).pixmap(56, 56));
+    empty_icon->setPixmap(vecut_icon(VeCutIcon::FolderPlus).pixmap(56, 56));
     empty_icon->setAlignment(Qt::AlignCenter);
     auto* empty_text = new QLabel("Your projects will appear here.
 Start creating now.", empty_projects);
@@ -994,14 +1042,13 @@ Start creating now.", empty_projects);
     auto* bottom_nav = new QHBoxLayout();
     bottom_nav->setContentsMargins(0, 4, 0, 0);
     const QStringList nav_names = {"Edit", "Templates", "AI Lab", "Inbox", "Me"};
-    const QList<QStyle::StandardPixmap> nav_icons = {
-        QStyle::SP_FileDialogContentsView, QStyle::SP_DirIcon,
-        QStyle::SP_ComputerIcon, QStyle::SP_MessageBoxInformation,
-        QStyle::SP_FileDialogInfoView
+    const QList<VeCutIcon> nav_icons = {
+        VeCutIcon::Edit, VeCutIcon::Template, VeCutIcon::Sparkles,
+        VeCutIcon::Inbox, VeCutIcon::User
     };
     for (int i = 0; i < nav_names.size(); ++i) {
         auto* nav_button = new QPushButton(nav_names[i], home_page_);
-        nav_button->setIcon(style()->standardIcon(nav_icons[i]));
+        nav_button->setIcon(vecut_icon(nav_icons[i]));
         nav_button->setIconSize(QSize(20, 20));
         nav_button->setMinimumHeight(56);
         nav_button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -1115,15 +1162,15 @@ void MainWindow::apply_responsive_layout() {
         workspace_->setOrientation(Qt::Vertical);
         workspace_->setSizes({145, 300});
         timeline_panel_->setMaximumHeight(190);
-        add_video_button_->setText("+ Video");
-        add_audio_button_->setText("+ Audio");
+        add_video_button_->setText("Video");
+        add_audio_button_->setText("Audio");
         status_label_->setMaximumHeight(34);
     } else {
         workspace_->setOrientation(Qt::Horizontal);
         workspace_->setSizes({280, 820});
         timeline_panel_->setMaximumHeight(230);
-        add_video_button_->setText("+ Video track");
-        add_audio_button_->setText("+ Audio track");
+        add_video_button_->setText("Video track");
+        add_audio_button_->setText("Audio track");
         status_label_->setMaximumHeight(24);
     }
 }
@@ -1682,6 +1729,7 @@ void MainWindow::load_preview_media(const QString& media_id) {
     preview_seek_->setRange(0, 0);
     preview_seek_->setValue(0);
     preview_play_button_->setText("Play");
+            preview_play_button_->setIcon(vecut_icon(VeCutIcon::Play));
 
     if (found->kind == vecut::MediaKind::Video) {
         preview_label_->setText("Loading video preview…");
@@ -2514,6 +2562,7 @@ void MainWindow::toggle_timeline_audio() {
     audio_mix_clock_.start();
     audio_mix_timer_->start();
     timeline_audio_button_->setText("Stop timeline audio");
+    timeline_audio_button_->setIcon(vecut_icon(VeCutIcon::Pause));
     status_label_->setText(QString("Playing timeline audio · %1 clip(s) mixed")
                                .arg(channel_count));
     update_timeline_audio();
@@ -2530,7 +2579,10 @@ void MainWindow::stop_timeline_audio() {
     }
     audio_mix_channels_.clear();
     timeline_audio_playing_ = false;
-    if (timeline_audio_button_) timeline_audio_button_->setText("Play timeline audio");
+    if (timeline_audio_button_) {
+        timeline_audio_button_->setText("Play timeline audio");
+        timeline_audio_button_->setIcon(vecut_icon(VeCutIcon::Play));
+    }
 }
 
 void MainWindow::update_timeline_audio() {
