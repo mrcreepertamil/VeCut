@@ -3,12 +3,29 @@
 #include <algorithm>
 #include <cmath>
 #include <iterator>
+#include <limits>
+#include <unordered_set>
 #include <utility>
 
 namespace vecut {
 namespace {
 std::string make_id(std::uint64_t value) {
     return "vc-" + std::to_string(value);
+}
+bool valid(MediaKind kind) {
+    return kind == MediaKind::Video || kind == MediaKind::Audio || kind == MediaKind::Image;
+}
+bool valid(TrackKind kind) {
+    return kind == TrackKind::Video || kind == TrackKind::Audio || kind == TrackKind::Overlay;
+}
+bool valid(TransitionKind kind) {
+    return kind >= TransitionKind::None && kind <= TransitionKind::SlideRightToLeft;
+}
+bool valid(AnimationKind kind) {
+    return kind >= AnimationKind::None && kind <= AnimationKind::RotateCounterClockwise;
+}
+bool add_would_overflow(std::int64_t a, std::int64_t b) {
+    return b > 0 && a > std::numeric_limits<std::int64_t>::max() - b;
 }
 }
 
@@ -24,8 +41,8 @@ const std::vector<MediaAsset>& Project::media() const noexcept { return media_; 
 const std::vector<Track>& Project::tracks() const noexcept { return tracks_; }
 
 bool Project::add_media(MediaAsset asset) {
-    if (asset.uri.empty() || asset.id.empty() || asset.duration_ms < 0 ||
-        asset.width < 0 || asset.height < 0) return false;
+    if (asset.uri.empty() || asset.id.empty() || !valid(asset.kind) ||
+        asset.duration_ms < 0 || asset.width < 0 || asset.height < 0) return false;
     const auto duplicate = std::find_if(media_.begin(), media_.end(),
         [&](const MediaAsset& item) { return item.id == asset.id; });
     if (duplicate != media_.end()) return false;
@@ -46,7 +63,12 @@ bool Project::update_media_info(const std::string& media_id, std::int64_t durati
 }
 
 bool Project::add_track(Track track) {
-    if (track.id.empty()) track.id = make_id(next_id_++);
+    if (!valid(track.kind) || !track.clips.empty()) return false;
+    if (track.id.empty()) {
+        do {
+            track.id = make_id(next_id_++);
+        } while (find_track(track.id));
+    }
     if (find_track(track.id)) return false;
     tracks_.push_back(std::move(track));
     return true;
@@ -55,7 +77,13 @@ bool Project::add_track(Track track) {
 bool Project::add_clip(const std::string& track_id, Clip clip) {
     Track* track = find_track(track_id);
     const MediaAsset* asset = find_media(clip.media_id);
-    if (!track || !asset || clip.id.empty() || find_clip(*track, clip.id)) return false;
+    if (!track || !asset || clip.id.empty() || !valid(track->kind) ||
+        !valid(asset->kind) || !valid(clip.incoming_transition.kind) ||
+        !valid(clip.animation.kind)) return false;
+    for (const auto& existing_track : tracks_) {
+        if (std::any_of(existing_track.clips.begin(), existing_track.clips.end(),
+            [&](const Clip& existing) { return existing.id == clip.id; })) return false;
+    }
     if (clip.source_in_ms < 0 || clip.source_out_ms <= clip.source_in_ms ||
         clip.source_out_ms > asset->duration_ms) return false;
     if (!std::isfinite(clip.volume) || clip.volume < 0.0 || clip.volume > 4.0)
@@ -79,11 +107,15 @@ bool Project::add_clip(const std::string& track_id, Clip clip) {
     if (clip.timeline_start_ms < -1) return false;
     if (clip.timeline_start_ms == -1) {
         std::int64_t track_end = 0;
-        for (const auto& existing : track->clips)
-            track_end = std::max(track_end, existing.timeline_start_ms +
-                existing.source_out_ms - existing.source_in_ms);
+        for (const auto& existing : track->clips) {
+            const auto existing_duration = existing.source_out_ms - existing.source_in_ms;
+            if (add_would_overflow(existing.timeline_start_ms, existing_duration)) return false;
+            track_end = std::max(track_end, existing.timeline_start_ms + existing_duration);
+        }
         clip.timeline_start_ms = track_end;
     }
+    if (add_would_overflow(clip.timeline_start_ms, clip.source_out_ms - clip.source_in_ms))
+        return false;
     track->clips.push_back(std::move(clip));
     return true;
 }
@@ -119,7 +151,7 @@ bool Project::trim_clip(const std::string& track_id, const std::string& clip_id,
 bool Project::set_transition(const std::string& track_id, const std::string& clip_id,
                              Transition transition) {
     Track* track = find_track(track_id);
-    if (!track || transition.duration_ms < 0) return false;
+    if (!track || !valid(transition.kind) || transition.duration_ms < 0) return false;
     Clip* clip = find_clip(*track, clip_id);
     if (!clip) return false;
     const auto clip_duration = clip->source_out_ms - clip->source_in_ms;
@@ -136,8 +168,8 @@ bool Project::set_transition(const std::string& track_id, const std::string& cli
 bool Project::set_clip_animation(const std::string& track_id, const std::string& clip_id,
                                  ClipAnimation animation) {
     Track* track = find_track(track_id);
-    if (!track || track->kind == TrackKind::Audio || static_cast<int>(animation.kind) < 0 ||
-        static_cast<int>(animation.kind) > 8 || animation.duration_ms < 0) return false;
+    if (!track || track->kind == TrackKind::Audio || !valid(animation.kind) ||
+        animation.duration_ms < 0) return false;
     Clip* clip = find_clip(*track, clip_id);
     if (!clip || animation.duration_ms > clip->source_out_ms - clip->source_in_ms) return false;
     if (animation.kind == AnimationKind::None) animation.duration_ms = 0;
@@ -166,10 +198,18 @@ std::optional<std::string> Project::split_clip(const std::string& track_id,
     if (it == track->clips.end() || split_source_time_ms <= it->source_in_ms ||
         split_source_time_ms >= it->source_out_ms) return std::nullopt;
 
+    const auto split_offset = split_source_time_ms - it->source_in_ms;
+    if (add_would_overflow(it->timeline_start_ms, split_offset)) return std::nullopt;
+
     Clip right = *it;
-    right.id = make_id(next_id_++);
+    do {
+        right.id = make_id(next_id_++);
+    } while (std::any_of(tracks_.begin(), tracks_.end(), [&](const Track& candidate) {
+        return std::any_of(candidate.clips.begin(), candidate.clips.end(),
+            [&](const Clip& existing) { return existing.id == right.id; });
+    }));
     right.source_in_ms = split_source_time_ms;
-    right.timeline_start_ms += split_source_time_ms - it->source_in_ms;
+    right.timeline_start_ms += split_offset;
     right.incoming_transition = {};
     it->source_out_ms = split_source_time_ms;
     const std::string new_id = right.id;
@@ -182,7 +222,8 @@ bool Project::move_clip_to_time(const std::string& track_id, const std::string& 
     Track* track = find_track(track_id);
     if (!track || timeline_start_ms < 0) return false;
     Clip* clip = find_clip(*track, clip_id);
-    if (!clip) return false;
+    if (!clip || add_would_overflow(timeline_start_ms,
+        clip->source_out_ms - clip->source_in_ms)) return false;
     clip->timeline_start_ms = timeline_start_ms;
     return true;
 }
@@ -212,8 +253,10 @@ std::int64_t Project::duration_ms() const noexcept {
     std::int64_t longest = 0;
     for (const auto& track : tracks_) {
         for (const auto& clip : track.clips) {
-            const auto end = clip.timeline_start_ms +
-                clip.source_out_ms - clip.source_in_ms;
+            const auto clip_duration = clip.source_out_ms - clip.source_in_ms;
+            if (clip.timeline_start_ms < 0 || add_would_overflow(clip.timeline_start_ms, clip_duration))
+                return std::numeric_limits<std::int64_t>::max();
+            const auto end = clip.timeline_start_ms + clip_duration;
             longest = std::max(longest, end);
         }
     }
@@ -225,28 +268,54 @@ bool Project::validate(std::string* error) const {
         if (error) *error = message;
         return false;
     };
+
+    std::unordered_set<std::string> media_ids;
+    for (const auto& asset : media_) {
+        if (asset.id.empty() || asset.uri.empty() || !valid(asset.kind) ||
+            asset.duration_ms < 0 || asset.width < 0 || asset.height < 0)
+            return fail("A media asset has invalid identity, type, or metadata.");
+        if (!media_ids.insert(asset.id).second)
+            return fail("Media asset IDs must be unique.");
+    }
+
+    std::unordered_set<std::string> track_ids;
+    std::unordered_set<std::string> clip_ids;
     for (const auto& track : tracks_) {
+        if (track.id.empty() || !valid(track.kind))
+            return fail("A track has an invalid ID or type.");
+        if (!track_ids.insert(track.id).second)
+            return fail("Track IDs must be unique.");
         for (const auto& clip : track.clips) {
+            if (clip.id.empty() || !clip_ids.insert(clip.id).second)
+                return fail("Clip IDs must be unique across the project.");
             const auto* asset = find_media(clip.media_id);
             if (!asset) return fail("A clip refers to missing media.");
+            if ((track.kind == TrackKind::Audio && asset->kind != MediaKind::Audio) ||
+                (track.kind != TrackKind::Audio && asset->kind == MediaKind::Audio))
+                return fail("A clip's media type is incompatible with its track.");
             if (clip.source_in_ms < 0 || clip.source_out_ms <= clip.source_in_ms ||
                 clip.source_out_ms > asset->duration_ms || clip.timeline_start_ms < 0)
                 return fail("A clip has an invalid source range or timeline position.");
+            const auto clip_duration = clip.source_out_ms - clip.source_in_ms;
+            if (add_would_overflow(clip.timeline_start_ms, clip_duration))
+                return fail("A clip's timeline end exceeds the supported time range.");
             if (!std::isfinite(clip.volume) || clip.volume < 0.0 || clip.volume > 4.0)
                 return fail("A clip volume must be between 0 and 4.");
-            const auto clip_duration = clip.source_out_ms - clip.source_in_ms;
-            if (clip.incoming_transition.duration_ms < 0 || clip.incoming_transition.duration_ms > clip_duration)
-                return fail("A transition is longer than its clip.");
-            if (static_cast<int>(clip.animation.kind) < 0 || static_cast<int>(clip.animation.kind) > 8 ||
+            if (!valid(clip.incoming_transition.kind) || !valid(clip.animation.kind) ||
+                clip.incoming_transition.duration_ms < 0 ||
+                clip.incoming_transition.duration_ms > clip_duration ||
                 clip.animation.duration_ms < 0 || clip.animation.duration_ms > clip_duration ||
                 clip.incoming_transition.fade_in_ms < 0 ||
                 clip.incoming_transition.fade_in_ms > clip_duration ||
                 clip.incoming_transition.fade_out_ms < 0 ||
                 clip.incoming_transition.fade_out_ms > clip_duration ||
+                (clip.incoming_transition.kind == TransitionKind::None &&
+                 clip.incoming_transition.duration_ms != 0) ||
+                (clip.animation.kind == AnimationKind::None && clip.animation.duration_ms != 0) ||
                 (track.kind == TrackKind::Audio && (clip.animation.kind != AnimationKind::None ||
                  clip.animation.duration_ms != 0 || clip.incoming_transition.fade_in_ms != 0 ||
                  clip.incoming_transition.fade_out_ms != 0)))
-                return fail("A clip has invalid animation or fade settings.");
+                return fail("A clip has invalid transition, animation, or fade settings.");
         }
     }
     if (error) error->clear();

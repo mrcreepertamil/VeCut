@@ -32,12 +32,19 @@ int main() {
     track.kind = TrackKind::Video;
     assert(project.add_track(track));
 
+    Track audio_id_track;
+    audio_id_track.id = "audio-id-test";
+    audio_id_track.kind = TrackKind::Audio;
+    assert(project.add_track(audio_id_track));
+
     Clip first;
     first.id = "clip-1";
     first.media_id = media.id;
     first.source_in_ms = 0;
     first.source_out_ms = 4000;
     assert(project.add_clip("video-1", first));
+    Clip duplicate_across_tracks = first;
+    assert(!project.add_clip("audio-id-test", duplicate_across_tracks));
     Clip invalid_volume = first;
     invalid_volume.id = "invalid-volume";
     invalid_volume.volume = 5.0;
@@ -107,6 +114,44 @@ int main() {
     std::string error;
     assert(project.validate(&error));
     assert(error.empty());
+
+    Project generated_id_project("Generated ID collision");
+    MediaAsset generated_media = media;
+    generated_media.id = "generated-media";
+    assert(generated_id_project.add_media(generated_media));
+    Track generated_track;
+    generated_track.id = "generated-track";
+    assert(generated_id_project.add_track(generated_track));
+    Clip generated_clip;
+    generated_clip.id = "caller-id";
+    generated_clip.media_id = generated_media.id;
+    generated_clip.source_out_ms = 5000;
+    assert(generated_id_project.add_clip("generated-track", generated_clip));
+    Clip reserved_generated_id = generated_clip;
+    reserved_generated_id.id = "vc-1";
+    reserved_generated_id.source_in_ms = 5000;
+    reserved_generated_id.source_out_ms = 10000;
+    assert(generated_id_project.add_clip("generated-track", reserved_generated_id));
+    const auto generated_split = generated_id_project.split_clip("generated-track", "caller-id", 2500);
+    assert(generated_split.has_value());
+    assert(*generated_split != "vc-1");
+    assert(generated_id_project.validate(&error));
+
+    Project invalid_enum_project("Invalid enum");
+    MediaAsset enum_media = media;
+    enum_media.id = "enum-media";
+    assert(invalid_enum_project.add_media(enum_media));
+    Track enum_track;
+    enum_track.id = "enum-track";
+    assert(invalid_enum_project.add_track(enum_track));
+    Clip enum_clip;
+    enum_clip.id = "enum-clip";
+    enum_clip.media_id = enum_media.id;
+    enum_clip.source_out_ms = 1000;
+    assert(invalid_enum_project.add_clip("enum-track", enum_clip));
+    const_cast<std::vector<Track>&>(invalid_enum_project.tracks()).front().clips.front()
+        .incoming_transition.kind = static_cast<TransitionKind>(999);
+    assert(!invalid_enum_project.validate(&error));
     assert(project.duration_ms() >= 12000);
 
     assert(project.remove_clip("video-1", *right_id));
@@ -125,6 +170,11 @@ int main() {
     still_track.id = "still-video";
     still_track.kind = TrackKind::Video;
     assert(still_project.add_track(still_track));
+    Track invalid_prepopulated_track;
+    invalid_prepopulated_track.id = "prepopulated";
+    invalid_prepopulated_track.clips.push_back(still_clip);
+    assert(!still_project.add_track(invalid_prepopulated_track));
+
     Track overlay_track;
     overlay_track.id = "overlay-1";
     overlay_track.kind = TrackKind::Overlay;

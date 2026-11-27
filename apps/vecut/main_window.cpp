@@ -1932,13 +1932,13 @@ void MainWindow::add_media_to_track(const QString& media_id, const QString& trac
 
 
 void MainWindow::save_project(bool save_as) {
-    if (current_project_path_.isEmpty() || save_as) {
-        const QString path = QFileDialog::getSaveFileName(
-            this, "Save VeCut project", current_project_path_.isEmpty()
-                ? QString("Untitled.vecut") : current_project_path_,
+    QString target_path = current_project_path_;
+    if (target_path.isEmpty() || save_as) {
+        target_path = QFileDialog::getSaveFileName(
+            this, "Save VeCut project", target_path.isEmpty()
+                ? QString("Untitled.vecut") : target_path,
             "VeCut project (*.vecut)");
-        if (path.isEmpty()) return;
-        current_project_path_ = path;
+        if (target_path.isEmpty()) return;
     }
 
     QJsonObject document;
@@ -1994,7 +1994,7 @@ void MainWindow::save_project(bool save_as) {
     }
     document.insert("tracks", track_items);
 
-    QSaveFile file(current_project_path_);
+    QSaveFile file(target_path);
     if (!file.open(QIODevice::WriteOnly)) {
         status_label_->setText(QString("Could not save project: %1").arg(file.errorString()));
         return;
@@ -2005,6 +2005,8 @@ void MainWindow::save_project(bool save_as) {
                                    .arg(file.errorString()));
         return;
     }
+    // Keep the previous active path if opening/writing/committing the new file fails.
+    current_project_path_ = target_path;
     setWindowTitle(QString("VeCut — %1").arg(QFileInfo(current_project_path_).fileName()));
     status_label_->setText(QString("Project saved: %1").arg(current_project_path_));
 }
@@ -2469,13 +2471,36 @@ void MainWindow::toggle_timeline_audio() {
             channel.player = new QMediaPlayer(this);
             channel.output = new QAudioOutput(this);
             channel.player->setAudioOutput(channel.output);
-            channel.player->setSource(QUrl::fromLocalFile(QString::fromStdString(media->uri)));
             channel.timeline_start_ms = clip.timeline_start_ms;
             channel.timeline_end_ms = clip.timeline_start_ms +
                 (clip.source_out_ms - clip.source_in_ms);
             channel.source_in_ms = clip.source_in_ms;
             channel.output->setVolume(std::clamp(clip.volume, 0.0, 1.0));
+            QMediaPlayer* player = channel.player;
+            connect(player, &QMediaPlayer::mediaStatusChanged, this,
+                [this, player](QMediaPlayer::MediaStatus status) {
+                    const auto it = std::find_if(audio_mix_channels_.begin(),
+                        audio_mix_channels_.end(), [player](const AudioMixChannel& item) {
+                            return item.player == player;
+                        });
+                    if (it == audio_mix_channels_.end()) return;
+                    if (status == QMediaPlayer::LoadedMedia ||
+                        status == QMediaPlayer::BufferedMedia) {
+                        it->ready = true;
+                    } else if (status == QMediaPlayer::InvalidMedia) {
+                        it->failed = true;
+                    }
+                });
+            connect(player, &QMediaPlayer::errorOccurred, this,
+                [this, player](QMediaPlayer::Error, const QString&) {
+                    const auto it = std::find_if(audio_mix_channels_.begin(),
+                        audio_mix_channels_.end(), [player](const AudioMixChannel& item) {
+                            return item.player == player;
+                        });
+                    if (it != audio_mix_channels_.end()) it->failed = true;
+                });
             audio_mix_channels_.push_back(channel);
+            player->setSource(QUrl::fromLocalFile(QString::fromStdString(media->uri)));
             ++channel_count;
         }
     }
@@ -2514,14 +2539,19 @@ void MainWindow::update_timeline_audio() {
     bool any_pending_or_playing = false;
 
     for (auto& channel : audio_mix_channels_) {
+        if (channel.failed) continue;
         if (now_ms >= channel.timeline_end_ms) {
             if (channel.started && channel.player) channel.player->stop();
             continue;
         }
         any_pending_or_playing = true;
-        if (!channel.started && now_ms >= channel.timeline_start_ms) {
+        if (!channel.started && channel.ready && now_ms >= channel.timeline_start_ms) {
+            // If media loading completed after its timeline start, seek past the
+            // elapsed portion instead of starting the clip late from its IN point.
+            const auto lateness_ms = std::max<std::int64_t>(
+                0, now_ms - channel.timeline_start_ms);
+            channel.player->setPosition(channel.source_in_ms + lateness_ms);
             channel.started = true;
-            channel.player->setPosition(channel.source_in_ms);
             channel.player->play();
         }
     }
