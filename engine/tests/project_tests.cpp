@@ -170,11 +170,6 @@ int main() {
     still_track.id = "still-video";
     still_track.kind = TrackKind::Video;
     assert(still_project.add_track(still_track));
-    Track invalid_prepopulated_track;
-    invalid_prepopulated_track.id = "prepopulated";
-    invalid_prepopulated_track.clips.push_back(still_clip);
-    assert(!still_project.add_track(invalid_prepopulated_track));
-
     Track overlay_track;
     overlay_track.id = "overlay-1";
     overlay_track.kind = TrackKind::Overlay;
@@ -185,6 +180,10 @@ int main() {
     still_clip.media_id = still.id;
     still_clip.source_in_ms = 0;
     still_clip.source_out_ms = 5000;
+    Track invalid_prepopulated_track;
+    invalid_prepopulated_track.id = "prepopulated";
+    invalid_prepopulated_track.clips.push_back(still_clip);
+    assert(!still_project.add_track(invalid_prepopulated_track));
     assert(still_project.add_clip("still-video", still_clip));
     assert(still_project.set_clip_animation("still-video", "still-clip", ClipAnimation{AnimationKind::PanLeft, 1000}));
     auto still_transition = still_project.tracks().front().clips.front().incoming_transition;
