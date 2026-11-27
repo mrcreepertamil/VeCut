@@ -623,9 +623,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     preview_layout->setContentsMargins(10, 10, 10, 10);
     preview_layout->setSpacing(8);
     preview_layout->addWidget(make_section_title("PREVIEW", preview_panel));
-    preview_label_ = new QLabel("Your preview will appear here
-
-Import media to begin", preview_panel);
+    preview_label_ = new QLabel("Your preview will appear here\n\nImport media to begin", preview_panel);
     preview_label_->setAlignment(Qt::AlignCenter);
     preview_label_->setMinimumSize(0, 0);
     preview_label_->setWordWrap(true);
@@ -1028,8 +1026,7 @@ Import media to begin", preview_panel);
     auto* empty_icon = new QLabel(empty_projects);
     empty_icon->setPixmap(vecut_icon(VeCutIcon::FolderPlus).pixmap(56, 56));
     empty_icon->setAlignment(Qt::AlignCenter);
-    auto* empty_text = new QLabel("Your projects will appear here.
-Start creating now.", empty_projects);
+    auto* empty_text = new QLabel("Your projects will appear here.\nStart creating now.", empty_projects);
     empty_text->setAlignment(Qt::AlignCenter);
     empty_text->setWordWrap(true);
     empty_text->setStyleSheet("font-size:15px;color:#929b98;");
@@ -1059,8 +1056,7 @@ Start creating now.", empty_projects);
         bottom_nav->addWidget(nav_button);
         if (i != 0) {
             connect(nav_button, &QPushButton::clicked, this, [this, name = nav_names[i]] {
-                QMessageBox::information(this, name.section('
-', 1), "This section is coming soon.");
+                QMessageBox::information(this, name.section('\n', 1), "This section is coming soon.");
             });
         }
     }
@@ -1392,11 +1388,8 @@ void MainWindow::show_media_file_picker() {
     for (const GalleryEntry& entry : entries) {
         const QString name = entry.info.fileName();
         const QString item_text = entry.kind == vecut::MediaKind::Video
-            ? name + "
-VIDEO" : (entry.kind == vecut::MediaKind::Image
-                ? name + "
-PHOTO" : name + "
-AUDIO");
+            ? name + " · VIDEO" : (entry.kind == vecut::MediaKind::Image
+                ? name + " · PHOTO" : name + " · AUDIO");
         for (auto* list : lists) {
             auto* item = new QListWidgetItem(item_text);
             item->setData(Qt::UserRole, entry.path);
@@ -1552,8 +1545,7 @@ AUDIO");
             for (int i = 0; i < list->count(); ++i) {
                 auto* item = list->item(i);
                 if (item->data(Qt::UserRole).toString() == active_video_path)
-                    item->setText(QFileInfo(active_video_path).fileName() + "
-" + label);
+                    item->setText(QFileInfo(active_video_path).fileName() + "\n" + label);
             }
         }
     });
@@ -1671,9 +1663,7 @@ void MainWindow::update_media_details(bool reload_preview) {
         media_details_->setText("No media selected");
         current_preview_frame_ = QImage();
         preview_label_->setPixmap(QPixmap());
-        preview_label_->setText("Your preview will appear here
-
-Import media to begin");
+        preview_label_->setText("Your preview will appear here\n\nImport media to begin");
         return;
     }
 
@@ -1693,11 +1683,7 @@ Import media to begin");
         : QString("Dimensions unavailable");
     const double size_mb = static_cast<double>(found->file_size_bytes) / (1024.0 * 1024.0);
     media_details_->setText(
-        QString("%1
-%2
-Duration: %3
-Size: %4 MB
-Dimensions: %5")
+        QString("%1\n%2\nDuration: %3\nSize: %4 MB\nDimensions: %5")
             .arg(QString::fromStdString(found->display_name), media_kind_name(found->kind),
                  duration, QString::number(size_mb, 'f', 2), dimensions));
     if (reload_preview) load_preview_media(id);
@@ -1730,9 +1716,7 @@ void MainWindow::load_preview_media(const QString& media_id) {
     } else if (found->kind == vecut::MediaKind::Audio) {
         current_preview_frame_ = QImage();
         preview_label_->setPixmap(QPixmap());
-        preview_label_->setText(QString("AUDIO PREVIEW
-
-%1")
+        preview_label_->setText(QString("AUDIO PREVIEW\n\n%1")
             .arg(QString::fromStdString(found->display_name)));
         preview_stack_->setCurrentWidget(preview_label_);
         preview_player_->setSource(QUrl::fromLocalFile(
