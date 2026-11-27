@@ -66,6 +66,7 @@
 #include <QStyle>
 #include <QSvgRenderer>
 #if defined(Q_OS_ANDROID)
+#include "media_scanner_android.h"
 #include <QJniObject>
 #include <QJniEnvironment>
 #include <QCoreApplication>
@@ -1255,21 +1256,10 @@ void MainWindow::show_media_file_picker() {
 
     QMap<QString, GalleryEntry> unique_entries;
 #if defined(Q_OS_ANDROID)
-    const QJniObject context = QNativeInterface::QAndroidApplication::context();
-    const jobjectArray scanned = QJniObject::callStaticMethod<jobjectArray>(
-        "com/mrcreepertamil/vecut/MediaScanner", "scan",
-        "(Landroid/content/Context;)[Ljava/lang/String;", context.object());
-    if (scanned) {
-        QJniEnvironment env;
-        const jsize count = env->GetArrayLength(scanned);
-        for (jsize i = 0; i < count; ++i) {
-            const auto value = static_cast<jstring>(env->GetObjectArrayElement(scanned, i));
-            const QString path = QJniObject::fromLocalRef(value).toString();
-            const QFileInfo info(path);
-            if (!path.isEmpty() && info.exists() && is_supported_media_file(info))
-                unique_entries.insert(path, GalleryEntry{path, info, media_kind_for_file(info)});
-        }
-        env->DeleteLocalRef(scanned);
+    for (const QString& path : scan_android_media_files()) {
+        const QFileInfo info(path);
+        if (!path.isEmpty() && info.exists() && is_supported_media_file(info))
+            unique_entries.insert(path, GalleryEntry{path, info, media_kind_for_file(info)});
     }
 #else
     QStringList scan_roots;

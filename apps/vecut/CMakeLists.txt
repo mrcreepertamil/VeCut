@@ -23,6 +23,7 @@ target_link_libraries(VeCut PRIVATE Qt6::Widgets Qt6::Multimedia Qt6::OpenGLWidg
 target_compile_features(VeCut PRIVATE cxx_std_17)
 
 if(ANDROID)
+    target_sources(VeCut PRIVATE media_scanner_android.cpp media_scanner_android.h)
     set_target_properties(VeCut PROPERTIES
         QT_ANDROID_PACKAGE_NAME "com.mrcreepertamil.vecut"
         QT_ANDROID_APP_NAME "VeCut"

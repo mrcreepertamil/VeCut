@@ -56,7 +56,7 @@ cmake --build build-engine
 ctest --test-dir build-engine --output-on-failure
 ```
 
-Use the Qt kit and CMake toolchain appropriate to the target platform. iOS builds require macOS, Xcode, the Qt iOS kit and Apple signing/deployment setup; Android builds require the Android Qt kit, SDK and NDK. They are not produced by a desktop build.
+Use the Qt kit and CMake toolchain appropriate to the target platform. iOS builds require macOS, Xcode, the Qt iOS kit and Apple signing/deployment setup; Android builds require the Android Qt kit, SDK, NDK and JDK 17 for Qt's deployment/packaging tools. They are not produced by a desktop build.
 
 ## Install a test APK on an Android phone (no PC required)
 
@@ -80,9 +80,9 @@ The artifact also includes a SHA-256 checksum file. Artifacts are retained for
 succeed before an installable APK is available. This workflow targets ARM64;
 it does not yet prove compatibility or performance on every device.
 
-## Android transition project
+## Android implementation
 
-`native-android/` is the existing Android prototype retained during migration. Its Java activity and Android-specific media classes are transitional and have **not** yet been replaced by the C++/Qt application. The Android CMake target also compiles the shared C++ project model. The existing prototype preview and timeline are not yet feature parity with the cross-platform app.
+Android uses the same C++17/Qt editor as desktop. MediaStore access is implemented in C++ through JNI; the retired standalone Java prototype is no longer part of the repository. The Android APK build still installs JDK 17 because Qt's Android deployment and packaging tools require Java tooling, but VeCut's editor and app-owned Android source are C++.
 
 ## Current status
 
