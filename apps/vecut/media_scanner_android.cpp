@@ -4,14 +4,9 @@
 
 #include <QJniEnvironment>
 #include <QJniObject>
-#include <QNativeInterface>
+#include <QCoreApplication>
 
 namespace {
-
-void clear_pending_exception() {
-    QJniEnvironment env;
-    if (env->ExceptionCheck()) env->ExceptionClear();
-}
 
 QStringList scan_collection(JNIEnv* env, jobject resolver, jmethodID query_method,
                             jclass uri_class, jmethodID uri_parse_method,
@@ -85,7 +80,7 @@ QStringList scan_android_media_files() {
     if (!context.isValid()) return {};
 
     QJniEnvironment environment;
-    JNIEnv* env = environment.operator->();
+    JNIEnv* env = environment.jniEnv();
     if (!env) return {};
 
     jclass context_class = env->GetObjectClass(context.object<jobject>());
