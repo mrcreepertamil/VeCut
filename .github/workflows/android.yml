@@ -61,7 +61,7 @@ jobs:
           target: android
           arch: android_arm64_v8a
           modules: qtmultimedia
-          archives: qtbase qtsvg
+          archives: qtbase qtsvg icu
           cache: true
 
       - name: Configure C++ Android build
